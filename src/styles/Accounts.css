@@ -1,0 +1,230 @@
+.accounts-container {
+  padding: 24px;
+  min-height: 100vh;
+  background: var(--color-background);
+}
+
+.accounts-header {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  border-radius: 14px;
+  padding: 20px 22px;
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.accounts-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.accounts-header p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.accounts-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.accounts-stat-card {
+  background: var(--color-surface);
+  border: 1px solid #dfe9df;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
+}
+
+.accounts-stat-card span {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.accounts-stat-card strong {
+  color: var(--color-primary);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.accounts-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 16px;
+}
+
+.accounts-card {
+  background: var(--color-surface);
+  border: 1px solid #dfe9df;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
+}
+
+.accounts-card h2 {
+  margin: 0 0 14px;
+  color: var(--color-primary);
+  font-size: 20px;
+}
+
+.account-form {
+  display: grid;
+  gap: 12px;
+}
+
+.account-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.account-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-form-group label {
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.account-form-group input,
+.account-form-group select {
+  border: 1px solid #d9e7d8;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: var(--color-text);
+  background: #fcfffb;
+}
+
+.account-form-group input:focus,
+.account-form-group select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(27, 94, 32, 0.12);
+}
+
+.account-message {
+  margin: 2px 0;
+  font-size: 13px;
+  color: var(--color-primary);
+  background: var(--color-secondary-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.create-account-btn {
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #2e7d32 100%);
+  color: #fff;
+  font-weight: 700;
+  padding: 12px 14px;
+}
+
+.create-account-btn:hover {
+  filter: brightness(1.03);
+}
+
+.accounts-table-wrap {
+  overflow-x: auto;
+}
+
+.accounts-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+
+.accounts-table th,
+.accounts-table td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid #e6efe6;
+  font-size: 14px;
+}
+
+.accounts-table th {
+  background: #f7fbf7;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.account-status {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-status.active {
+  background: #dff3e1;
+  color: #2e7d32;
+}
+
+.account-status.inactive {
+  background: #fde7e7;
+  color: #b42318;
+}
+
+.account-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.account-action-btn {
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.account-action-btn:hover {
+  background: var(--color-secondary-soft);
+}
+
+.account-action-btn.delete {
+  border-color: #c62828;
+  color: #c62828;
+}
+
+.account-action-btn.delete:hover {
+  background: #fde7e7;
+}
+
+@media (max-width: 1080px) {
+  .accounts-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .accounts-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .accounts-container {
+    padding: 14px;
+  }
+
+  .accounts-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-form-row {
+    grid-template-columns: 1fr;
+  }
+}

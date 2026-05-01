@@ -1,0 +1,95 @@
+/* App Layout */
+.app {
+  min-height: 100vh;
+  background-color: var(--color-background);
+}
+
+.main-content {
+  padding: 84px 22px 20px;
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  transition: margin-left 0.3s ease, width 0.3s ease;
+}
+
+body.sidebar-collapsed .main-content {
+  margin-left: 86px;
+  width: calc(100% - 86px);
+}
+
+/* Responsive Design for Tablets and Mobiles */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 78px 15px 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 78px 10px 12px;
+  }
+
+  body.sidebar-collapsed .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 74px 8px 10px;
+  }
+}
+
+.print-btn {
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.print-btn:hover {
+  background: var(--color-secondary-soft);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .farm-records,
+  .reports-container,
+  .farm-records *,
+  .reports-container * {
+    visibility: visible;
+  }
+
+  .farm-records,
+  .reports-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  .no-print,
+  .add-record-form,
+  .tab-navigation,
+  .filter-row,
+  .record-actions,
+  .crop-actions,
+  .secondary-btn,
+  .print-btn {
+    display: none !important;
+  }
+
+  .records-header,
+  .reports-header-section {
+    page-break-after: avoid;
+  }
+}
