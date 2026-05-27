@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/Navbar.css';
 
-function Navbar({ activeTab, setActiveTab, onLogout, userName }) {
+function Navbar({ activeTab, setActiveTab, onLogout, userName, userRole }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const canAccessAccounts = userRole === 'Admin';
+  const canAccessReports = userRole !== 'Farm Worker';
 
   const dateString = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -21,6 +23,10 @@ function Navbar({ activeTab, setActiveTab, onLogout, userName }) {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
+    // Close sidebar on mobile after clicking a menu item
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const userInitials = userName
@@ -32,12 +38,13 @@ function Navbar({ activeTab, setActiveTab, onLogout, userName }) {
 
   return (
     <>
-      <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'}`}>
         <div className="sidebar-profile">
           <div className="sidebar-avatar">{userInitials || 'U'}</div>
           <div className="sidebar-user-info">
             <h3>{userName}</h3>
-            <p>Admin</p>
+            <p>{userRole || 'User'}</p>
           </div>
         </div>
 
@@ -62,22 +69,35 @@ function Navbar({ activeTab, setActiveTab, onLogout, userName }) {
           </li>
           <li>
             <button
-              className={`sidebar-link ${activeTab === 'reports' ? 'active' : ''}`}
-              onClick={() => handleTabChange('reports')}
+              className={`sidebar-link ${activeTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => handleTabChange('inventory')}
             >
-              <span className="icon">▨</span>
-              <span className="label">Reports</span>
+              <span className="icon">▣</span>
+              <span className="label">Inventory</span>
             </button>
           </li>
-          <li>
-            <button
-              className={`sidebar-link ${activeTab === 'alerts' ? 'active' : ''}`}
-              onClick={() => handleTabChange('alerts')}
-            >
-              <span className="icon">⊙</span>
-              <span className="label">Accounts</span>
-            </button>
-          </li>
+          {canAccessReports && (
+            <li>
+              <button
+                className={`sidebar-link ${activeTab === 'reports' ? 'active' : ''}`}
+                onClick={() => handleTabChange('reports')}
+              >
+                <span className="icon">▨</span>
+                <span className="label">Reports</span>
+              </button>
+            </li>
+          )}
+          {canAccessAccounts && (
+            <li>
+              <button
+                className={`sidebar-link ${activeTab === 'accounts' ? 'active' : ''}`}
+                onClick={() => handleTabChange('accounts')}
+              >
+                <span className="icon">⊙</span>
+                <span className="label">Accounts</span>
+              </button>
+            </li>
+          )}
         </ul>
 
         <button className="sidebar-logout" aria-label="Logout" onClick={onLogout}>

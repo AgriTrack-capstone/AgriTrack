@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import '../styles/Login.css';
+import Logo from './Logo';
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -18,9 +19,21 @@ function Login({ onLogin }) {
     setError('');
   };
 
+  const bg = process.env.PUBLIC_URL + '/login-bg.jpg';
+
   return (
-    <div className="login-screen">
+    <div
+      className="login-screen"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.35), rgba(255,255,255,0.35)), url(${bg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundBlendMode: 'normal'
+      }}
+    >
       <div className="login-card">
+        <Logo />
         <h1>AgriTrack</h1>
         <p className="login-subtitle">Welcome back, Farmer!</p>
 

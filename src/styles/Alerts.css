@@ -751,6 +751,205 @@
   }
 }
 
+/* ===== Stock Threshold Alerts (500 kg) ===== */
+.alerts-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.alerts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.alerts-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: #1a1a1a;
+}
+
+.alert-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  background-color: #d32f2f;
+  color: white;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.alert-card {
+  border: 1px solid #f0e68c;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fffacd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s;
+}
+
+.alert-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-color: #ffd700;
+}
+
+.alert-card.warning {
+  border-left: 4px solid #ffa500;
+}
+
+.alert-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.alert-icon-wrapper {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: #fff3cd;
+  color: #856404;
+}
+
+.alert-info {
+  flex: 1;
+}
+
+.alert-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #1a1a1a;
+}
+
+.alert-field {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+
+.close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #999;
+  padding: 4px;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #d32f2f;
+}
+
+.alert-body {
+  background: white;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stock-info,
+.threshold-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  border-bottom: 1px solid #eeeeee;
+  padding-bottom: 8px;
+}
+
+.stock-info:last-of-type,
+.threshold-info:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.stock-info .label,
+.threshold-info .label {
+  color: #666;
+  font-weight: 500;
+}
+
+.stock-info .value,
+.threshold-info .value {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.alert-message {
+  font-size: 13px;
+  color: #856404;
+  background: #fff3cd;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 14px;
+}
+
+.dismissed-alerts {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eeeeee;
+}
+
+.dismissed-label {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.text-link {
+  background: transparent;
+  border: none;
+  color: #2e7d32;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.text-link:hover {
+  color: #1b5e20;
+}
+
 /* ===== Final Green Theme Pass ===== */
 .alerts-container {
   background-color: var(--color-background);

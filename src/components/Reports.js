@@ -1,673 +1,468 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import '../styles/Reports.css';
 
-// StatCard Component
-function StatCard({ label, value, subtitle, icon, bgColor }) {
-  return (
-    <div className="stat-card-reports">
-      <div className="stat-label-reports">{label}</div>
-      <div className="stat-value-reports">{value}</div>
-      <div className="stat-subtitle-reports">{subtitle}</div>
-      <div className={`stat-icon-reports ${bgColor}`}>{icon}</div>
-    </div>
-  );
+const RANGE_OPTIONS = [
+  { key: 'week', label: 'Week', icon: '📅', points: 7, unit: 'day' },
+  { key: 'month', label: 'Month', icon: '🗓️', points: 4, unit: 'month' },
+  { key: 'midyear', label: 'Midyear', icon: '⏳', points: 6, unit: 'month' },
+  { key: 'year', label: 'Year', icon: '☀️', points: 12, unit: 'month' }
+];
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString();
 }
 
-function formatQuantity(quantity) {
-  if (!quantity) return '0';
-  const amount = Number.isFinite(quantity.amount) ? quantity.amount : 0;
-  return `${amount}${quantity.unit ? ` ${quantity.unit}` : ''}`.trim();
-}
-
-function formatDateLabel(value) {
-  if (!value) return 'N/A';
+function toDate(value) {
+  if (!value) return null;
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return String(value);
-  return parsed.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function getCropHealthStatus(stockAmount) {
-  if (stockAmount >= 200) return 'Excellent';
-  if (stockAmount >= 100) return 'Very Good';
-  if (stockAmount >= 50) return 'Good';
-  return 'Needs Attention';
+function getRecordDate(record) {
+  return toDate(record.scheduleAt || record.date || record.created_at || record.inserted_at);
 }
 
-function getProductionStatus(achievement) {
-  if (achievement >= 100) return 'Exceeded';
-  if (achievement >= 90) return 'On Track';
-  return 'Below Target';
+function getRecordQuantity(record) {
+  return Number(record.quantity?.amount ?? record.qty_amount ?? record.amount ?? 0) || 0;
 }
 
-// Crop Health & Growth Summary Table Component
-function CropHealthSummaryTable({ crops }) {
-  const data = crops.map((crop) => {
-    const stockAmount = crop.stock?.amount || 0;
-    const healthScore = Math.min(100, 60 + Math.round(stockAmount / 10));
-    const growthRate = Math.min(100, Math.round(stockAmount / 5) || 0);
+function classifyRecord(record) {
+  const text = `${record.title || ''} ${record.notes || ''} ${record.status || ''}`.toLowerCase();
+
+  if (/\b(used|usage|harvest|consumed|withdraw|deduct|issue|remove|spent)\b/.test(text)) {
+    return 'used';
+  }
+
+  if (/\b(add|added|addded|restock|received|incoming|inventory|plant|seed|purchase|stock)\b/.test(text)) {
+    return 'added';
+  }
+
+  if ((record.status || '').toLowerCase() === 'completed') {
+    return 'used';
+  }
+
+  return 'added';
+}
+
+function formatMonthRangeLabel(start, end) {
+  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endLabel = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${startLabel} - ${endLabel}`;
+}
+
+function buildPeriods(rangeKey) {
+  const range = RANGE_OPTIONS.find((option) => option.key === rangeKey) || RANGE_OPTIONS[0];
+  const now = new Date();
+  const periods = [];
+
+  if (range.unit === 'day') {
+    for (let index = range.points - 1; index >= 0; index -= 1) {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - index);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      periods.push({
+        key: start.toISOString().slice(0, 10),
+        start,
+        end,
+        label: start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      });
+    }
+    return periods;
+  }
+
+  for (let index = range.points - 1; index >= 0; index -= 1) {
+    const start = new Date(now.getFullYear(), now.getMonth() - index, 1);
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    end.setHours(23, 59, 59, 999);
+    periods.push({
+      key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`,
+      start,
+      end,
+      label: formatMonthRangeLabel(start, end)
+    });
+  }
+
+  return periods;
+}
+
+function buildRows(records, rangeKey) {
+  const periods = buildPeriods(rangeKey);
+
+  return periods.map((period) => {
+    const added = records.reduce((total, record) => {
+      const recordDate = getRecordDate(record);
+      if (!recordDate || recordDate < period.start || recordDate > period.end) return total;
+      return classifyRecord(record) === 'added' ? total + getRecordQuantity(record) : total;
+    }, 0);
+
+    const used = records.reduce((total, record) => {
+      const recordDate = getRecordDate(record);
+      if (!recordDate || recordDate < period.start || recordDate > period.end) return total;
+      return classifyRecord(record) === 'used' ? total + getRecordQuantity(record) : total;
+    }, 0);
+
+    const totalEntries = records.filter((record) => {
+      const recordDate = getRecordDate(record);
+      return recordDate && recordDate >= period.start && recordDate <= period.end;
+    }).length;
 
     return {
-      crop: crop.name,
-      field: crop.field,
-      stock: formatQuantity(crop.stock),
-      healthScore: `${healthScore}%`,
-      growthRate: `${growthRate}%`,
-      status: getCropHealthStatus(stockAmount),
-      trend: growthRate >= 75 ? '📈' : '➡️'
+      key: period.key,
+      label: period.label,
+      added,
+      used,
+      totalEntries,
+      net: added - used
     };
   });
+}
+
+function DualLineChart({ added = [], used = [] }) {
+  const width = 320;
+  const height = 130;
+  const allValues = [...added, ...used, 1];
+  const max = Math.max(...allValues);
+  const min = Math.min(...allValues, 0);
+  const step = added.length > 1 ? width / (added.length - 1) : width;
+
+  const buildPoints = (series) => series
+    .map((value, index) => {
+      const x = index * step;
+      const ratio = max === min ? 0.5 : (value - min) / (max - min);
+      const y = height - 18 - (ratio * (height - 36));
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  const addedPoints = buildPoints(added);
+  const usedPoints = buildPoints(used);
 
   return (
-    <div className="summary-table-container">
-      <div className="summary-header">
-        <h3>🌱 Current Crop Health & Growth Summary</h3>
-        <p>Live crop inventory from Farm Records</p>
-      </div>
-      <table className="summary-table">
-        <thead>
-          <tr>
-            <th>Crop</th>
-            <th>Field</th>
-            <th>Stock</th>
-            <th>Health Score</th>
-            <th>Growth Rate</th>
-            <th>Status</th>
-            <th>Trend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((item, index) => (
-            <tr key={index}>
-              <td>{item.crop}</td>
-              <td>{item.field}</td>
-              <td>{item.stock}</td>
-              <td className="score-cell">{item.healthScore}</td>
-              <td className="score-cell">{item.growthRate}</td>
-              <td>
-                <span className={`status-badge-table status-${item.status.toLowerCase().replace(' ', '-')}`}>
-                  {item.status}
-                </span>
-              </td>
-              <td className="trend-cell">{item.trend}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <svg className="report-line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <line x1="0" y1={height - 16} x2={width} y2={height - 16} className="chart-baseline" />
+      <polyline points={addedPoints} fill="none" className="chart-line chart-line-added" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={usedPoints} fill="none" className="chart-line chart-line-used" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-// Production Summary Component
-function ProductionSummary({ crops, records }) {
-  const productionRows = crops.map((crop) => {
-    const actual = crop.stock?.amount || 0;
-    const target = Math.max(100, Math.round(actual * 1.1) || 100);
-    const achievement = target > 0 ? Math.round((actual / target) * 100) : 0;
-    const recordCount = records.filter((record) => record.crop === crop.name).length;
+const REPORT_HEADER_SVG = `
+<svg viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="130" cy="130" r="110" fill="none" stroke="#315b33" stroke-width="3" />
+  <path d="M48 112c13-29 38-51 67-62" fill="none" stroke="#315b33" stroke-width="4" stroke-linecap="round" />
+  <path d="M212 112c-13-29-38-51-67-62" fill="none" stroke="#315b33" stroke-width="4" stroke-linecap="round" />
+  <path d="M52 156c12 28 35 49 63 60" fill="none" stroke="#315b33" stroke-width="4" stroke-linecap="round" />
+  <path d="M208 156c-12 28-35 49-63 60" fill="none" stroke="#315b33" stroke-width="4" stroke-linecap="round" />
+  <path d="M130 58c33 0 59 26 59 59 0 46-32 79-59 111-27-32-59-65-59-111 0-33 26-59 59-59Z" fill="#245d2d" opacity="0.95" />
+  <path d="M130 78c22 0 40 18 40 40 0 30-21 52-40 74-19-22-40-44-40-74 0-22 18-40 40-40Z" fill="#8ec63f" opacity="0.95" />
+  <path d="M130 86c16 0 29 13 29 29 0 21-15 36-29 52-14-16-29-31-29-52 0-16 13-29 29-29Z" fill="#c8e26d" opacity="0.95" />
+  <path d="M68 94c4 0 9 2 12 6 3 4 4 10 2 15-6 2-12 1-16-3-4-4-5-10-2-14 1-2 2-3 4-4Z" fill="#94c14c" />
+  <path d="M192 94c-4 0-9 2-12 6-3 4-4 10-2 15 6 2 12 1 16-3 4-4 5-10 2-14-1-2-2-3-4-4Z" fill="#94c14c" />
+  <path d="M62 172c6-5 13-7 19-5 5 2 9 8 10 14-4 5-10 7-16 6-6-1-11-5-13-10-1-2-1-4 0-5Z" fill="#94c14c" />
+  <path d="M198 172c-6-5-13-7-19-5-5 2-9 8-10 14 4 5 10 7 16 6 6-1 11-5 13-10 1-2 1-4 0-5Z" fill="#94c14c" />
+  <circle cx="130" cy="59" r="10" fill="#2d2d2d" />
+  <path d="M130 58c31 0 56 25 56 56" fill="none" stroke="#d9ef53" stroke-width="6" stroke-linecap="round" />
+  <circle cx="186" cy="114" r="6" fill="#d9ef53" />
+</svg>`;
 
-    return {
-      name: crop.name,
-      actual,
-      target,
-      achievement,
-      status: getProductionStatus(achievement),
-      variance: actual - target,
-      field: crop.field,
-      recordCount
-    };
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
   });
+}
 
-  const getStatusColor = (status) => {
-    if (status === 'Below Target') return 'orange';
-    if (status === 'Exceeded') return 'green';
-    if (status === 'On Track') return 'blue';
-    return 'gray';
+async function svgToPngDataUrl(svgMarkup) {
+  const blob = new Blob([svgMarkup], { type: 'image/svg+xml;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = await loadImage(blobUrl);
+    const size = 360;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, size, size);
+    context.drawImage(image, 0, 0, size, size);
+
+    return canvas.toDataURL('image/png');
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
+}
+
+function getRangeLabel(rangeKey) {
+  return RANGE_OPTIONS.find((option) => option.key === rangeKey)?.label || 'Month';
+}
+
+async function downloadPdfReport(records, rangeKey) {
+  const rows = buildRows(records, rangeKey);
+  const rangeLabel = getRangeLabel(rangeKey);
+  const generatedLabel = new Date().toLocaleString();
+  const headerLogo = await svgToPngDataUrl(REPORT_HEADER_SVG);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const marginX = 14;
+  const topBandHeight = 72;
+  const startY = 82;
+  const rowHeight = 10;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const tableWidth = pageWidth - (marginX * 2);
+  const columnWidths = [tableWidth * 0.36, tableWidth * 0.16, tableWidth * 0.16, tableWidth * 0.16, tableWidth * 0.16];
+  const headers = ['Period', 'Added', 'Used', 'Net', 'Records'];
+  const lineColor = [60, 110, 60];
+  const headerGreen = [35, 88, 48];
+  const textGreen = [52, 96, 56];
+
+  const drawHeader = () => {
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageWidth, topBandHeight, 'F');
+
+    doc.setTextColor(116, 121, 128);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(10.5);
+    doc.text('Agritrack - San Agustin Malaplap Farmers Association', marginX, 12);
+    doc.text(`Generated on: ${generatedLabel}`, pageWidth - marginX, 12, { align: 'right' });
+    doc.text(`Report range: ${rangeLabel}`, pageWidth - marginX, 20, { align: 'right' });
+
+    doc.addImage(headerLogo, 'PNG', marginX, 18, 30, 30);
+
+    doc.setTextColor(35, 88, 48);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('PROVINCE OF ZAMBALES | CASTILLEJOS', 50, 28);
+    doc.text('BARANGAY MALAPLAP, SAN AGUSTIN', 50, 36);
+    doc.setFontSize(24);
+    doc.text('AGRITRACK', 50, 48);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.text('FARM INVENTORY MONITORING', 50, 56);
+
+    doc.setDrawColor(35, 88, 48);
+    doc.setLineWidth(0.8);
+    doc.line(marginX, topBandHeight - 2, pageWidth - marginX, topBandHeight - 2);
+
+    doc.setTextColor(32, 49, 32);
+    doc.setFillColor(245, 247, 245);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
   };
 
-  const getVarianceColor = (variance) => {
-    return variance >= 0 ? 'green' : 'orange';
+  let currentY = startY;
+
+  const drawHeaderRow = () => {
+    let currentX = marginX;
+    doc.setDrawColor(...lineColor);
+    doc.setLineWidth(0.4);
+
+    doc.setFillColor(255, 255, 255);
+    doc.rect(currentX, currentY, columnWidths[0], rowHeight, 'FD');
+    doc.setTextColor(...textGreen);
+    doc.text(headers[0], currentX + 2, currentY + 6.5);
+    currentX += columnWidths[0];
+
+    doc.setFillColor(...headerGreen);
+    doc.rect(currentX, currentY, columnWidths.slice(1).reduce((sum, width) => sum + width, 0), rowHeight, 'FD');
+    doc.setTextColor(255, 255, 255);
+    const greenHeaderLabelsX = [
+      currentX + 2,
+      currentX + columnWidths[1] + 2,
+      currentX + columnWidths[1] + columnWidths[2] + 2,
+      currentX + columnWidths[1] + columnWidths[2] + columnWidths[3] + 2
+    ];
+
+    headers.slice(1).forEach((header, index) => {
+      doc.text(header, greenHeaderLabelsX[index], currentY + 6.5);
+    });
+
+    currentX += columnWidths.slice(1).reduce((sum, width) => sum + width, 0);
+    currentY += rowHeight;
   };
 
-  return (
-    <div className="production-section">
-      {/* Production Table */}
-      <div className="production-table-container">
-        <div className="production-header">
-          <h3>⭕ Production Summary by Crop</h3>
-          <p>Current inventory and activity volume from Farm Records</p>
-        </div>
-        <table className="production-table">
-          <thead>
-            <tr>
-              <th>Crop</th>
-              <th>Field</th>
-              <th>Actual Yield</th>
-              <th>Target</th>
-              <th>Achievement</th>
-              <th>Activities</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {productionRows.map((crop, index) => (
-              <tr key={index}>
-                <td className="crop-name">{crop.name}</td>
-                <td>{crop.field}</td>
-                <td className="yield-cell">{crop.actual.toLocaleString()} kg</td>
-                <td>{crop.target.toLocaleString()} kg</td>
-                <td className="achievement-cell">{crop.achievement}%</td>
-                <td>{crop.recordCount}</td>
-                <td>
-                  <span className={`status-badge-prod status-${getStatusColor(crop.status).toLowerCase()}`}>
-                    {crop.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  const drawPageHeader = () => {
+    drawHeader();
+    currentY = startY;
+    drawHeaderRow();
+  };
 
-      {/* Harvest Cards Grid */}
-      <div className="harvest-cards-grid">
-        {productionRows.map((crop, index) => (
-          <div key={index} className="harvest-card">
-            <div className="harvest-card-header">
-              <div className="harvest-card-title">
-                <span className="harvest-icon">🌱</span>
-                <div>
-                  <h4>{crop.name}</h4>
-                  <p>{crop.field}</p>
-                </div>
-              </div>
-              <span className={`variance-badge variance-${getVarianceColor(crop.variance)}`}>
-                {crop.variance > 0 ? '+' : ''}{crop.variance} kg
-              </span>
-            </div>
-            <div className="harvest-card-details">
-              <div className="stat-box">
-                <span className="stat-label">Actual Yield</span>
-                <span className="stat-val">{crop.actual}</span>
-                <span className="stat-unit">kg</span>
-              </div>
-              <div className="stat-box">
-                <span className="stat-label">Target</span>
-                <span className="stat-val">{crop.target}</span>
-                <span className="stat-unit">kg</span>
-              </div>
-              <div className="stat-box">
-                <span className="stat-label">Achievement</span>
-                <span className="stat-val">{crop.achievement}%</span>
-                <span className="stat-unit">rate</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+  drawHeader();
+  drawHeaderRow();
 
-function ResourceUsage({ crops, records }) {
-  const fields = Array.from(new Set([...crops.map((crop) => crop.field), ...records.map((record) => record.field)].filter(Boolean)));
-  const resources = fields.map((field) => {
-    const fieldCrops = crops.filter((crop) => crop.field === field);
-    const fieldRecords = records.filter((record) => record.field === field);
-    const totalStock = fieldCrops.reduce((sum, crop) => sum + (crop.stock?.amount || 0), 0);
-
-    return {
-      name: field,
-      january: `${fieldCrops.length} crops`,
-      february: `${fieldRecords.length} activities`,
-      march: `${totalStock} total stock`,
-      total: `${fieldCrops.length + fieldRecords.length} entries`,
-      avg: fieldCrops.length ? `${Math.round(totalStock / fieldCrops.length)} stock/crop` : '0 stock/crop'
-    };
-  });
-
-  return (
-    <div className="resource-table-container">
-      <div className="resource-header">
-        <h3>⚡ Field Usage Summary</h3>
-        <p>Current fields, crops, and related activity volume</p>
-      </div>
-      <table className="resource-table">
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Crops</th>
-            <th>Activities</th>
-            <th>Total Stock</th>
-            <th>Total Entries</th>
-            <th>Average/ Crop</th>
-          </tr>
-        </thead>
-        <tbody>
-          {resources.map((resource, index) => (
-            <tr key={index}>
-              <td className="resource-name">{resource.name}</td>
-              <td>{resource.january}</td>
-              <td>{resource.february}</td>
-              <td>{resource.march}</td>
-              <td className="total-cell">{resource.total}</td>
-              <td className="avg-cell">{resource.avg}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// Expense Breakdown Component
-function ExpenseBreakdown() {
-  const expenses = [
-    { category: 'Seeds & Seedlings', percentage: '15%', amount: '₱12,500', color: 'teal' },
-    { category: 'Fertilizers', percentage: '21%', amount: '₱18,200', color: 'green' },
-    { category: 'Pesticides', percentage: '10%', amount: '₱8,500', color: 'orange' },
-    { category: 'Labor', percentage: '29%', amount: '₱25,000', color: 'purple' },
-    { category: 'Water & Irrigation', percentage: '8%', amount: '₱6,500', color: 'cyan' },
-    { category: 'Tools & Equipment', percentage: '17%', amount: '₱15,000', color: 'blue' }
-  ];
-
-  const getColorClass = (color) => `expense-item-${color}`;
-
-  return (
-    <div className="expense-breakdown-container">
-      <div className="expense-header">
-        <h3>💵 Expense Breakdown</h3>
-        <p>Cost allocation by category</p>
-      </div>
-      <div className="expense-list">
-        {expenses.map((expense, index) => (
-          <div key={index} className={`expense-item ${getColorClass(expense.color)}`}>
-            <div className="expense-info">
-              <h4>{expense.category}</h4>
-              <p>{expense.percentage} of total budget</p>
-            </div>
-            <span className="expense-amount">{expense.amount}</span>
-          </div>
-        ))}
-      </div>
-      <div className="total-expenses-box">
-        <span>Total Expenses</span>
-        <span className="total-amount">₱85,700</span>
-      </div>
-    </div>
-  );
-}
-
-// Cost Efficiency Component
-function CostEfficiency() {
-  return (
-    <div className="cost-efficiency-container">
-      <div className="cost-efficiency-header">
-        <h3>📊 Cost Efficiency Metrics</h3>
-      </div>
-      <div className="metrics-grid">
-        <div className="metric-card metric-green">
-          <div className="metric-top">
-            <span>Cost per Hectare</span>
-            <span className="metric-icon">📈</span>
-          </div>
-          <div className="metric-value">₱16,863</div>
-          <div className="metric-desc">Based on 5.1 hectares total</div>
-        </div>
-
-        <div className="metric-card metric-blue">
-          <div className="metric-top">
-            <span>Cost per Kilogram</span>
-            <span className="metric-icon">💰</span>
-          </div>
-          <div className="metric-value">₱9.10</div>
-          <div className="metric-desc">Based on 9,450 kg total yield</div>
-        </div>
-
-        <div className="metric-card metric-purple">
-          <div className="metric-top">
-            <span>Efficiency Rating</span>
-            <span className="metric-icon">⭐</span>
-          </div>
-          <div className="metric-value">87%</div>
-          <div className="metric-desc">Above industry average</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Top Expense Categories Component
-function TopExpenseCategories() {
-  const topExpenses = [
-    { rank: 1, category: 'Labor', amount: '₱25,000', percentage: '29%' },
-    { rank: 2, category: 'Fertilizers', amount: '₱18,200', percentage: '21%' },
-    { rank: 3, category: 'Tools & Equipment', amount: '₱15,000', percentage: '17%' }
-  ];
-
-  return (
-    <div className="top-expenses-container">
-      <h3>🎆 Top Expense Categories</h3>
-      <p>Your biggest cost drivers this season</p>
-      <div className="top-expenses-grid">
-        {topExpenses.map((expense, index) => (
-          <div key={index} className="top-expense-card">
-            <div className="rank-badge">{expense.rank}</div>
-            <h4>{expense.category}</h4>
-            <div className="expense-details">
-              <span className="amount">{expense.amount}</span>
-              <span className="percentage">{expense.percentage} of budget</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Activities Summary Component
-function ActivitiesSummary({ records }) {
-  const groupedActivities = Object.values(
-    records.reduce((accumulator, record) => {
-      const key = record.crop || 'Unassigned';
-      if (!accumulator[key]) {
-        accumulator[key] = {
-          type: key,
-          count: 0,
-          latestDate: '',
-          percentage: 0
-        };
-      }
-
-      accumulator[key].count += 1;
-      const recordDate = record.scheduleAt || record.date;
-      if (!accumulator[key].latestDate || new Date(recordDate) > new Date(accumulator[key].latestDate)) {
-        accumulator[key].latestDate = recordDate;
-      }
-
-      return accumulator;
-    }, {})
-  ).map((activity) => ({
-    ...activity,
-    percentage: records.length ? Math.round((activity.count / records.length) * 100) : 0,
-    lastPerformed: formatDateLabel(activity.latestDate)
-  }));
-
-  const timelineMap = records.reduce((accumulator, record) => {
-    const recordDate = new Date(record.scheduleAt || record.date);
-    if (Number.isNaN(recordDate.getTime())) return accumulator;
-
-    const monthKey = recordDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    if (!accumulator[monthKey]) {
-      accumulator[monthKey] = {
-        month: monthKey,
-        count: 0,
-        activities: {}
-      };
+  rows.forEach((row) => {
+    if (currentY + rowHeight > pageHeight - 16) {
+      doc.addPage();
+      drawPageHeader();
     }
 
-    accumulator[monthKey].count += 1;
-    const activityKey = record.crop || 'Unassigned';
-    accumulator[monthKey].activities[activityKey] = (accumulator[monthKey].activities[activityKey] || 0) + 1;
-    return accumulator;
-  }, {});
+    let currentX = marginX;
+    const values = [row.label, formatNumber(row.added), formatNumber(row.used), formatNumber(row.net), String(row.totalEntries)];
 
-  const timelineData = Object.values(timelineMap)
-    .sort((left, right) => new Date(right.month) - new Date(left.month))
-    .slice(0, 3)
-    .map((period, index) => ({
-      ...period,
-      color: ['blue', 'green', 'purple'][index % 3],
-      activities: Object.entries(period.activities).map(([name, count]) => ({ name, count }))
-    }));
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...textGreen);
+    doc.setDrawColor(...lineColor);
+    doc.setLineWidth(0.3);
+
+    values.forEach((value, index) => {
+      doc.rect(currentX, currentY, columnWidths[index], rowHeight);
+      doc.text(value, currentX + 2, currentY + 6.5, { maxWidth: columnWidths[index] - 4 });
+      currentX += columnWidths[index];
+    });
+
+    currentY += rowHeight;
+  });
+
+  doc.save(`agritrack-report-${rangeKey}.pdf`);
+}
+
+function Reports({ records = [] }) {
+  const [rangeKey, setRangeKey] = useState('month');
+  const [viewMode, setViewMode] = useState('table');
+  const [showPrintCard, setShowPrintCard] = useState(false);
+  const [printRangeKey, setPrintRangeKey] = useState(rangeKey);
+
+  const rows = useMemo(() => buildRows(records, rangeKey), [records, rangeKey]);
+
+  const periodLabel = getRangeLabel(rangeKey);
+  const addedValues = rows.map((row) => row.added);
+  const usedValues = rows.map((row) => row.used);
 
   return (
-    <div className="activities-section">
-      {/* Activities Table */}
-      <div className="activities-table-container">
-        <div className="activities-header">
-          <h3>📊 Farm Activities Summary</h3>
-          <p>Activity breakdown sourced from Farm Records</p>
+    <div className="reports-time-container">
+      <div className="reports-time-header">
+        <div>
+          <h1>Reports</h1>
+          <p>Total added or used over time with table and graph views.</p>
         </div>
-        <table className="activities-table">
-          <thead>
-            <tr>
-              <th>Crop</th>
-              <th>Total Count</th>
-              <th>Percentage</th>
-              <th>Last Performed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groupedActivities.map((activity, index) => (
-              <tr key={index}>
-                <td className="activity-name">
-                  {activity.type}
-                </td>
-                <td>
-                  <span className="count-badge">{activity.count} times</span>
-                </td>
-                <td>
-                  <div className="percentage-bar">
-                    <div className="percentage-fill" style={{ width: `${activity.percentage}%` }}></div>
-                    <span className="percentage-text">{activity.percentage}%</span>
-                  </div>
-                </td>
-                <td>{activity.lastPerformed}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
-      {/* Timeline Section */}
-      <div className="timeline-container">
-        <h3>📅 Monthly Activity Timeline</h3>
-        <div className="timeline">
-          {timelineData.map((period, index) => (
-            <div key={index} className={`timeline-item timeline-${period.color}`}>
-              <div className={`timeline-marker marker-${period.color}`}>📅</div>
-              <div className="timeline-content">
-                <h4>{period.month}</h4>
-                <p className="activity-count">{period.count} activities recorded</p>
-                <div className="timeline-activities">
-                  {period.activities.map((activity, idx) => (
-                    <div key={idx} className="timeline-activity">
-                      <span>{activity.name}</span>
-                      <span className={`activity-count-badge count-${period.color}`}>
-                        {activity.count} times
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+      <div className="reports-toolbar">
+        <div className="reports-range-tabs" aria-label="Select report range">
+          {RANGE_OPTIONS.map((option) => (
+            <button
+              key={option.key}
+              className={`reports-range-tab ${rangeKey === option.key ? 'active' : ''}`}
+              onClick={() => setRangeKey(option.key)}
+              type="button"
+            >
+              <span className="reports-range-icon">{option.icon}</span>
+              <span className="reports-range-label">{option.label}</span>
+            </button>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
 
-// Key Insights Component
-function KeyInsights() {
-  const insights = [
-    { icon: '📈', title: 'Steady Growth', description: 'Health score improved by 22% over 6 months', color: 'green' },
-    { icon: '✓', title: 'Optimal Conditions', description: 'Current crop health is in excellent range', color: 'blue' },
-    { icon: '⭕', title: 'Consistent Improvement', description: 'Growth rate increased every month', color: 'purple' }
-  ];
-
-  return (
-    <div className="insights-container">
-      <h3>⚡ Key Insights</h3>
-      <div className="insights-grid">
-        {insights.map((insight, index) => (
-          <div key={index} className={`insight-card insight-${insight.color}`}>
-            <div className="insight-icon">{insight.icon}</div>
-            <div className="insight-content">
-              <h4>{insight.title}</h4>
-              <p>{insight.description}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Growth Factors Component
-function GrowthFactors({ crops, records }) {
-  const factors = [
-    { name: 'Crop Entries', icon: '🌿', percentage: Math.min(100, crops.length * 25), color: 'green' },
-    { name: 'Recorded Activities', icon: '📋', percentage: Math.min(100, records.length * 25), color: 'blue' },
-    { name: 'Field Coverage', icon: '🌞', percentage: Math.min(100, new Set(crops.map((crop) => crop.field)).size * 30), color: 'orange' }
-  ];
-
-  return (
-    <div className="growth-factors-container">
-      <h3>🚀 Growth Factors Performance</h3>
-      <div className="factors-list">
-        {factors.map((factor, index) => (
-          <div key={index} className={`factor-card factor-${factor.color}`}>
-            <div className={`factor-icon-circle icon-${factor.color}`}>{factor.icon}</div>
-            <div className="factor-content">
-              <h4>{factor.name}</h4>
-              <span className="factor-percentage">{factor.percentage}%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Main Reports Component
-function Reports({ crops = [], records = [] }) {
-  const [activeTab, setActiveTab] = useState('Crop Growth');
-
-  const totalStock = crops.reduce((sum, crop) => sum + (crop.stock?.amount || 0), 0);
-  const activeFields = new Set(crops.map((crop) => crop.field)).size;
-  const completedRecords = records.filter((record) => record.status === 'Completed').length;
-  const averageCropStock = crops.length ? Math.round(totalStock / crops.length) : 0;
-  const recordCompletionRate = records.length ? Math.round((completedRecords / records.length) * 100) : 0;
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  return (
-    <div className="reports-container">
-      {/* Header */}
-      <div className="reports-header-section">
-        <div className="header-content">
-          <h1>Farm Reports & Analytics</h1>
-          <p>Comprehensive performance insights sourced from Farm Records</p>
+        <div>
+          <button className="reports-print-btn no-print" type="button" onClick={() => { setPrintRangeKey(rangeKey); setShowPrintCard(true); }}>
+            Export to PDF File
+          </button>
         </div>
-        <button className="print-btn no-print" onClick={handlePrint}>
-          🖨️ Print Report
-        </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="stats-grid">
-        <StatCard
-          label="Total Crops"
-          value={crops.length}
-          subtitle="Live crop entries"
-          icon="🌱"
-          bgColor="green-bg"
-        />
-        <StatCard
-          label="Total Activities"
-          value={records.length}
-          subtitle={`${completedRecords} completed`}
-          icon="📋"
-          bgColor="orange-bg"
-        />
-        <StatCard
-          label="Active Fields"
-          value={activeFields}
-          subtitle="Unique field entries"
-          icon="📊"
-          bgColor="blue-bg"
-        />
-        <StatCard
-          label="Avg Crop Stock"
-          value={averageCropStock}
-          subtitle={`${recordCompletionRate}% activity completion`}
-          icon="📈"
-          bgColor="purple-bg"
-        />
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="tab-navigation">
-        <button
-          className={`tab-btn no-print ${activeTab === 'Crop Growth' ? 'active' : ''}`}
-          onClick={() => setActiveTab('Crop Growth')}
-        >
-          Crop Growth
-        </button>
-        <button
-          className={`tab-btn no-print ${activeTab === 'Production' ? 'active' : ''}`}
-          onClick={() => setActiveTab('Production')}
-        >
-          Production
-        </button>
-        <button
-          className={`tab-btn no-print ${activeTab === 'Activities' ? 'active' : ''}`}
-          onClick={() => setActiveTab('Activities')}
-        >
-          Activities
-        </button>
-        <button
-          className={`tab-btn no-print ${activeTab === 'Resources' ? 'active' : ''}`}
-          onClick={() => setActiveTab('Resources')}
-        >
-          Resources
-        </button>
-      </div>
-
-      {/* Tab Content */}
-      <div className="tab-content">
-        {activeTab === 'Crop Growth' && (
-          <div className="tab-pane">
-            <CropHealthSummaryTable crops={crops} />
-            <div className="insights-row">
-              <KeyInsights />
-              <GrowthFactors crops={crops} records={records} />
+      {viewMode === 'graph' ? (
+        <section className="reports-card">
+          <div className="reports-card-header">
+            <h2>Added and used trend by {periodLabel.toLowerCase()}</h2>
+            <p>Green shows added quantity and dark green shows used quantity for each period.</p>
+          </div>
+          <div className="graph-shell">
+            <div className="graph-legend">
+              <span><i className="legend-swatch added" /> Added</span>
+              <span><i className="legend-swatch used" /> Used</span>
+            </div>
+            <DualLineChart added={addedValues} used={usedValues} />
+            <div className="graph-axis">
+              {rows.map((row) => (
+                <span key={row.key}>{row.label}</span>
+              ))}
             </div>
           </div>
-        )}
-
-        {activeTab === 'Production' && (
-          <div className="tab-pane">
-            <ProductionSummary crops={crops} records={records} />
+          <div className="graph-metrics">
+            {rows.map((row) => (
+              <div key={row.key} className="graph-metric-pill">
+                <strong>{formatNumber(row.selected)}</strong>
+                <span>{row.label}</span>
+              </div>
+            ))}
           </div>
-        )}
-
-        {activeTab === 'Activities' && (
-          <div className="tab-pane">
-            <ActivitiesSummary records={records} />
+        </section>
+      ) : (
+        <section className="reports-card">
+          <div className="reports-card-header">
+            <h2>Inventory totals by {periodLabel.toLowerCase()}</h2>
+            <p>Review the total quantity added and used for each period.</p>
           </div>
-        )}
+          <div className="reports-table-wrap">
+            <table className="reports-table">
+              <thead>
+                <tr>
+                  <th>Period</th>
+                  <th>Added</th>
+                  <th>Used</th>
+                  <th>Net</th>
+                  <th>Records</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.key}>
+                    <td>{row.label}</td>
+                    <td>{formatNumber(row.added)}</td>
+                    <td>{formatNumber(row.used)}</td>
+                    <td className={row.net >= 0 ? 'positive' : 'negative'}>{formatNumber(row.net)}</td>
+                    <td>{row.totalEntries}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
-        {activeTab === 'Resources' && (
-          <div className="tab-pane">
-            <ResourceUsage crops={crops} records={records} />
-            <div className="resources-row">
-              <ExpenseBreakdown />
-              <CostEfficiency />
+      {showPrintCard && (
+        <div className="reports-print-overlay no-print" onClick={() => setShowPrintCard(false)}>
+          <div className="reports-print-card" onClick={(e) => e.stopPropagation()}>
+            <div className="reports-card-header">
+              <h2>Export Report to PDF</h2>
+              <p>Select the period to download first, then print it from the PDF viewer.</p>
             </div>
-            <TopExpenseCategories />
+            <div className="reports-range-tabs print-range-tabs">
+              {RANGE_OPTIONS.map((option) => (
+                <button
+                  key={option.key}
+                  className={`reports-range-tab print-range-tab ${printRangeKey === option.key ? 'active' : ''}`}
+                  onClick={() => setPrintRangeKey(option.key)}
+                  type="button"
+                >
+                  <span className="reports-range-icon">{option.icon}</span>
+                  <span className="reports-range-label">{option.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="reports-print-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowPrintCard(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={async () => {
+                setViewMode('table');
+                setRangeKey(printRangeKey);
+                setShowPrintCard(false);
+                await downloadPdfReport(records, printRangeKey);
+              }}>
+                Download PDF File
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
   );
+
 }
 
 export default Reports;

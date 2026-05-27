@@ -18,6 +18,28 @@
   width: 86px;
 }
 
+/* Sidebar overlay for mobile */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 199;
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .sidebar-profile {
   padding: 18px 14px;
   display: flex;
@@ -146,6 +168,11 @@
   justify-content: center;
   gap: 4px;
   cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.hamburger:hover {
+  background: var(--color-neutral-dark);
 }
 
 .hamburger span {
@@ -153,7 +180,21 @@
   height: 2px;
   border-radius: 2px;
   background: var(--color-primary-dark);
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  display: block;
+}
+
+/* Hamburger animation when sidebar is closed (active state) */
+.hamburger.active span:first-child {
+  transform: rotate(45deg) translate(8px, 8px);
+}
+
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(7px, -7px);
 }
 
 .topbar-date {
@@ -197,12 +238,94 @@
   }
 }
 
-@media (max-width: 576px) {
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    width: 240px;
+    height: 100vh;
+    z-index: 300;
+    transition: transform 0.3s ease;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
   .topbar {
-    padding: 0 10px;
+    left: 0;
+    padding: 0 12px;
+  }
+
+  .sidebar.collapsed {
+    width: 240px;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.collapsed.open {
+    transform: translateX(0);
   }
 
   .topbar-date {
     font-size: 13px;
+  }
+
+  .hamburger {
+    display: flex;
+  }
+}
+
+@media (max-width: 576px) {
+  .sidebar {
+    width: 80vw;
+    max-width: 240px;
+    left: 0;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-profile {
+    padding: 14px 10px;
+  }
+
+  .sidebar-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .sidebar-user-info h3 {
+    font-size: 13px;
+  }
+
+  .sidebar-user-info p {
+    font-size: 11px;
+  }
+
+  .sidebar-link {
+    padding: 11px 12px;
+    font-size: 15px;
+  }
+
+  .topbar {
+    height: 60px;
+    padding: 0 8px;
+  }
+
+  .topbar-date {
+    font-size: 12px;
+  }
+
+  .hamburger {
+    width: 40px;
+    height: 40px;
   }
 }

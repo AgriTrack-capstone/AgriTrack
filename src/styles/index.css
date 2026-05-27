@@ -7,7 +7,7 @@
   --color-neutral: #eeeeee;
   --color-neutral-dark: #d6d6d6;
   --color-surface: #ffffff;
-  --color-background: #f5f7f5;
+  --color-background: #ffffff;
   --color-text: #1f2a1f;
   --color-text-muted: #5f6b5f;
 }
@@ -61,11 +61,18 @@ button {
   cursor: pointer;
   border: none;
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 a {
   text-decoration: none;
   color: inherit;
+}
+
+/* Mobile-friendly viewport */
+@viewport {
+  width: device-width;
+  zoom: 1;
 }
 
 /* Animation */

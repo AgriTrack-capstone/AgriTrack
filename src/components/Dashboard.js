@@ -3,8 +3,6 @@ import '../styles/Dashboard.css';
 
 
 function Dashboard({ crops = [], records = [] }) {
-  const today = new Date();
-  const dateString = today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
   // Calculate dynamic values from crops and records
@@ -45,44 +43,50 @@ function Dashboard({ crops = [], records = [] }) {
     }
   ];
 
-  const recentActivitiesData = [
-    {
-      type: 'Irrigation',
-      count: 12,
-      date: 'March 9',
-      icon: '💧',
-      color: '#1b5e20',
-      field: 'Rice Field A',
-      image: 'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&w=1200&q=80'
-    },
-    {
-      type: 'Fertilizing',
-      count: 5,
-      date: 'March 8',
-      icon: '🌱',
-      color: '#2e7d32',
-      field: 'Vegetable Plot C',
-      image: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80'
-    },
-    {
-      type: 'Pest Control',
-      count: 3,
-      date: 'March 7',
-      icon: '🐛',
-      color: '#7b8f7c',
-      field: 'Corn Field B',
-      image: 'https://images.unsplash.com/photo-1471193945509-9ad0617afabf?auto=format&fit=crop&w=1200&q=80'
-    },
-    {
-      type: 'Harvesting',
-      count: 2,
-      date: 'March 6',
-      icon: '🌾',
-      color: '#a5d6a7',
-      field: 'North Plot',
-      image: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80'
+  // Generate recent activities from records with fallback to sample data
+  const generateRecentActivities = () => {
+    const activityIcons = { 'Irrigation': '💧', 'Fertilizing': '🌱', 'Pest Control': '🐛', 'Harvesting': '🌾', 'Planting': '🌿' };
+    const activityImages = {
+      'Irrigation': 'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&w=1200&q=80',
+      'Fertilizing': 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
+      'Pest Control': 'https://images.unsplash.com/photo-1471193945509-9ad0617afabf?auto=format&fit=crop&w=1200&q=80',
+      'Harvesting': 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80',
+      'Planting': 'https://images.unsplash.com/photo-1625246333333-e28e67ddf97d?auto=format&fit=crop&w=1200&q=80'
+    };
+    const activityColors = { 'Irrigation': '#1b5e20', 'Fertilizing': '#2e7d32', 'Pest Control': '#7b8f7c', 'Harvesting': '#a5d6a7', 'Planting': '#558b2f' };
+    
+    if (records.length > 0) {
+      // Group records by crop and get recent ones
+      const grouped = {};
+      records.slice(0, 10).forEach(record => {
+        const key = record.crop || 'Activity';
+        if (!grouped[key]) {
+          grouped[key] = { ...record, count: 0 };
+        }
+        grouped[key].count += 1;
+      });
+      
+      return Object.values(grouped).slice(0, 4).map((activity, idx) => ({
+        type: activity.crop || 'Farm Activity',
+        count: activity.count,
+        date: activity.date || 'Today',
+        icon: activityIcons[activity.crop] || '📋',
+        color: activityColors[activity.crop] || '#7b8f7c',
+        field: activity.field || 'Farm',
+        image: activityImages[activity.crop] || activityImages['Harvesting']
+      }));
     }
-  ];
+    
+    // Fallback to default activities
+    return [
+      { type: 'Irrigation', count: 12, date: 'March 9', icon: '💧', color: '#1b5e20', field: 'Rice Field A', image: activityImages['Irrigation'] },
+      { type: 'Fertilizing', count: 5, date: 'March 8', icon: '🌱', color: '#2e7d32', field: 'Vegetable Plot C', image: activityImages['Fertilizing'] },
+      { type: 'Pest Control', count: 3, date: 'March 7', icon: '🐛', color: '#7b8f7c', field: 'Corn Field B', image: activityImages['Pest Control'] },
+      { type: 'Harvesting', count: 2, date: 'March 6', icon: '🌾', color: '#a5d6a7', field: 'North Plot', image: activityImages['Harvesting'] }
+    ];
+  };
+  
+  const recentActivitiesData = generateRecentActivities();
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -102,12 +106,17 @@ function Dashboard({ crops = [], records = [] }) {
     setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % recentActivitiesData.length);
   };
 
-  // Generate crop status data from crops array with health percentages
-  const cropStatusData = crops.map((crop, index) => ({
-    name: crop.name,
-    percentage: 85 + Math.min(15, index * 3), // Dynamic health percentage based on crop
-    color: crop.color || '#a5d6a7'
-  }));
+  // Generate crop status data from crops array with health percentages based on stock
+  const cropStatusData = crops.map((crop) => {
+    const stockAmount = crop.stock?.amount || 0;
+    // Health percentage based on stock amount (0-1000kg range)
+    const percentage = Math.min(100, Math.round((stockAmount / 500) * 100));
+    return {
+      name: crop.name,
+      percentage: Math.max(20, percentage), // Min 20% for visibility
+      color: crop.color || '#a5d6a7'
+    };
+  });
 
   return (
     

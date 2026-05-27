@@ -1,119 +1,170 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import '../styles/FarmRecords.css';
 
 function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords = () => {} }) {
-
-  const [selectedCrop, setSelectedCrop] = useState('All Crops');
+  const [activeTab, setActiveTab] = useState('crops');
   const [showCropForm, setShowCropForm] = useState(false);
-  const [showRecordForm, setShowRecordForm] = useState(false);
-  const [cropForm, setCropForm] = useState({ name: '', field: '', stock: '' });
-  const [cropFormMode, setCropFormMode] = useState('inventory');
-  const [recordForm, setRecordForm] = useState({ title: '', field: '', crop: '', quantity: '', scheduleAt: '', notes: '' });
+  const [showInputForm, setShowInputForm] = useState(false);
+  const [showEquipmentForm, setShowEquipmentForm] = useState(false);
+  const [showFuelForm, setShowFuelForm] = useState(false);
+  const [showHarvestForm, setShowHarvestForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [cropForm, setCropForm] = useState({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+  const [inputForm, setInputForm] = useState({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' });
+  const [equipmentForm, setEquipmentForm] = useState({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' });
+  const [fuelForm, setFuelForm] = useState({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' });
+  const [harvestForm, setHarvestForm] = useState({ cropName: '', quantity: '', unit: 'kg', dateHarvested: '', status: 'Harvested' });
+  const [inputs, setInputs] = useState([]);
+  const [toast, setToast] = useState('');
+  const [equipment, setEquipment] = useState([]);
+  const [fuels, setFuels] = useState([]);
+  const [harvests, setHarvests] = useState([]);
   const [editCropId, setEditCropId] = useState(null);
-  const [editRecordId, setEditRecordId] = useState(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [editInputId, setEditInputId] = useState(null);
+  const [editEquipmentId, setEditEquipmentId] = useState(null);
+  const [editFuelId, setEditFuelId] = useState(null);
+  const [editHarvestId, setEditHarvestId] = useState(null);
+  const [menuOpenId, setMenuOpenId] = useState(null);
 
-  const parseQuantity = (value) => {
-    const match = String(value).trim().match(/^([0-9,.]+)\s*(.*)$/);
-    const amount = match ? parseFloat(match[1].replace(/,/g, '')) : 0;
-    const unit = match ? match[2].trim() : '';
-    return { amount: Number.isNaN(amount) ? 0 : amount, unit };
-  };
-
-  const formatQuantity = (quantity) => {
-    if (!quantity) return '';
-    const { amount, unit } = quantity;
-    return `${amount}${unit ? ` ${unit}` : ''}`.trim();
-  };
-
-  const changeQuantities = (base, delta) => {
-    if (!base && !delta) return { amount: 0, unit: '' };
-    if (!base) return delta;
-    if (!delta || delta.amount === 0) return base;
-
-    const baseUnit = base.unit?.toLowerCase() || '';
-    const deltaUnit = delta.unit?.toLowerCase() || baseUnit;
-    if (!baseUnit || !deltaUnit || baseUnit === deltaUnit) {
-      return {
-        amount: Math.max(0, base.amount + delta.amount),
-        unit: base.unit || delta.unit
-      };
-    }
-    return base;
-  };
-
-  const addQuantities = (base, additional) => changeQuantities(base, additional);
-  const subtractQuantities = (base, reduction) => changeQuantities(base, { ...reduction, amount: reduction.amount * -1 });
-
-  const formatShortDate = (dateValue) => {
-    if (!dateValue) return '';
-    const parsed = new Date(dateValue);
-    if (Number.isNaN(parsed.getTime())) return '';
-    return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const getComputedStatus = (record, now) => {
-    if (record.status === 'Completed') return 'Completed';
-    if (!record.scheduleAt) return 'Scheduled';
-
-    const scheduled = new Date(record.scheduleAt);
-    if (Number.isNaN(scheduled.getTime())) return 'Scheduled';
-
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-    if (scheduled < now) return 'Overdue';
-    if (scheduled >= todayStart && scheduled < tomorrowStart) return 'Due Today';
-    return 'Scheduled';
-  };
-
+  // auto-clear toasts after a short delay
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
+    if (!toast) return;
+    const id = setTimeout(() => setToast(''), 3000);
+    return () => clearTimeout(id);
+  }, [toast]);
 
-    return () => clearInterval(timer);
+  // Fetch all data from Supabase on component mount
+  useEffect(() => {
+    const fetchAllData = async () => {
+      try {
+        // Fetch inputs - transform snake_case to camelCase
+        const { data: inputsData, error: inputsError } = await supabase.from('inputs').select();
+        if (inputsError) throw inputsError;
+        if (inputsData) {
+          const transformed = inputsData.map(item => ({
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            quantity: item.quantity,
+            unit: item.unit,
+            dateAdded: item.date_added,
+            status: item.status
+          }));
+          setInputs(transformed);
+        }
+
+        // Fetch equipment - transform snake_case to camelCase
+        const { data: equipmentData, error: equipmentError } = await supabase.from('equipment').select();
+        if (equipmentError) throw equipmentError;
+        if (equipmentData) {
+          const transformed = equipmentData.map(item => ({
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            status: item.status,
+            lastMaintenance: item.last_maintenance,
+            cost: item.cost
+          }));
+          setEquipment(transformed);
+        }
+
+        // Fetch fuels
+        const { data: fuelsData, error: fuelsError } = await supabase.from('fuels').select();
+        if (fuelsError) throw fuelsError;
+        if (fuelsData) {
+          const transformed = fuelsData.map(item => ({
+            id: item.id,
+            type: item.type,
+            quantity: item.quantity,
+            unit: item.unit,
+            date: item.date,
+            cost: item.cost
+          }));
+          setFuels(transformed);
+        }
+
+        // Fetch harvests - transform snake_case to camelCase
+        const { data: harvestsData, error: harvestsError } = await supabase.from('harvests').select();
+        if (harvestsError) throw harvestsError;
+        if (harvestsData) {
+          const transformed = harvestsData.map(item => ({
+            id: item.id,
+            cropName: item.crop_name,
+            quantity: item.quantity,
+            unit: item.unit,
+            dateHarvested: item.date_harvested,
+            status: item.status
+          }));
+          setHarvests(transformed);
+        }
+
+        // subscribe to inputs realtime changes so UI updates when inserts/updates happen elsewhere
+        // (we also set up a dedicated subscription below outside this fetch function)
+        // NOTE: Crops are managed by parent App.js which has real-time subscriptions
+        // FarmRecords receives crops via props. Do NOT fetch crops here to avoid data conflicts
+      } catch (error) {
+        console.error('Error fetching farm records data:', error);
+        setToast('Error loading farm records: ' + (error?.message || String(error)));
+      }
+    };
+
+    fetchAllData();
   }, []);
 
-  const cropNames = Array.from(new Set(crops.map((crop) => crop.name)));
-    const fieldNames = Array.from(new Set(crops.map((crop) => crop.field).filter(Boolean)));
-  const recordsWithStatus = records.map((record) => ({
-    ...record,
-    computedStatus: getComputedStatus(record, currentTime)
-  }));
+  // Realtime subscription for inputs so newly-added records appear immediately
+  useEffect(() => {
+    const handleInputChange = (payload) => {
+      const row = payload.new;
+      const oldRow = payload.old;
 
-  const visibleRecords = selectedCrop === 'All Crops'
-    ? recordsWithStatus
-    : recordsWithStatus.filter((record) => record.crop === selectedCrop);
+      if (payload.eventType === 'INSERT' && row) {
+        setInputs((prev) => [{
+          id: row.id,
+          name: row.name,
+          type: row.type,
+          quantity: row.quantity,
+          unit: row.unit,
+          dateAdded: row.date_added,
+          status: row.status
+        }, ...prev]);
+      }
 
-  const totalCrops = crops.length;
-  const activeFields = new Set(crops.map((crop) => crop.field)).size;
-  const alertCount = recordsWithStatus.filter((record) => record.computedStatus !== 'Completed').length;
-  const quickStats = [
-    { label: 'Total Crops', value: totalCrops, icon: '🌿', trend: '0', accent: '#2e7d32', soft: '#e7f4e8' },
-    { label: 'Active Fields', value: activeFields, icon: '🛰️', trend: '↗', accent: '#4b8f52', soft: '#eef7ee' },
-    { label: 'Alerts', value: alertCount, icon: '⚠️', trend: '0', accent: '#c98a00', soft: '#fff4d6' }
-  ];
+      if (payload.eventType === 'UPDATE' && row) {
+        setInputs((prev) => prev.map((it) => (
+          it.id === row.id ? { id: row.id, name: row.name, type: row.type, quantity: row.quantity, unit: row.unit, dateAdded: row.date_added, status: row.status } : it
+        )));
+      }
 
-  const handleCropInputChange = (e) => {
-    const { name, value } = e.target;
+      if (payload.eventType === 'DELETE') {
+        setInputs((prev) => prev.filter((it) => it.id !== (oldRow?.id || row?.id)));
+      }
+    };
+
+    const channel = supabase
+      .channel('inputs-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inputs' }, handleInputChange)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const filteredCrops = crops.filter((crop) => {
+    const query = searchTerm.trim().toLowerCase();
+    return !query || crop.name.toLowerCase().includes(query) || (crop.variety || '').toLowerCase().includes(query);
+  });
+
+  const handleCropInputChange = (event) => {
+    const { name, value } = event.target;
     setCropForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleRecordInputChange = (e) => {
-    const { name, value } = e.target;
-    setRecordForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSaveCrop = (e) => {
-    e.preventDefault();
+  const handleSaveCrop = (event) => {
+    event.preventDefault();
     if (!cropForm.name.trim()) return;
 
-    const parsedStock = cropFormMode === 'crop'
-      ? { amount: 0, unit: '' }
-      : parseQuantity(cropForm.stock);
-    // Persist to Supabase then update local state
     (async () => {
       try {
         if (editCropId) {
@@ -121,10 +172,10 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             .from('crops')
             .update({
               name: cropForm.name,
-              field: cropForm.field,
-              stock_amt: parsedStock.amount,
-              stock_unit: parsedStock.unit,
-              color: cropForm.color || '#e8f5e9'
+              variety: cropForm.variety,
+              date_planted: cropForm.datePlanted,
+              area: parseFloat(cropForm.area) || 0,
+              status: cropForm.status
             })
             .eq('id', editCropId)
             .select()
@@ -132,18 +183,30 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setCrops((prev) => prev.map((crop) => (
-              crop.id === editCropId ? { ...crop, name: data.name, field: data.field, stock: { amount: Number(data.stock_amt) || 0, unit: data.stock_unit || '' } } : crop
+              crop.id === editCropId
+                ? {
+                    ...crop,
+                    name: data.name,
+                    variety: data.variety,
+                    datePlanted: data.date_planted,
+                    area: data.area,
+                    status: data.status
+                  }
+                : crop
             )));
+            alert('Crop updated successfully!');
+          } else if (error) {
+            alert('Error updating crop: ' + error.message);
           }
         } else {
           const { data, error } = await supabase
             .from('crops')
             .insert([{
               name: cropForm.name,
-              field: cropForm.field,
-              stock_amt: parsedStock.amount,
-              stock_unit: parsedStock.unit,
-              color: cropForm.color || '#e8f5e9'
+              variety: cropForm.variety,
+              date_planted: cropForm.datePlanted,
+              area: parseFloat(cropForm.area) || 0,
+              status: cropForm.status
             }])
             .select()
             .single();
@@ -152,542 +215,1099 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             const created = {
               id: data.id,
               name: data.name,
-              field: data.field,
-              stock: { amount: Number(data.stock_amt) || 0, unit: data.stock_unit || '' },
-              color: data.color || '#e8f5e9'
+              variety: data.variety,
+              datePlanted: data.date_planted,
+              area: data.area,
+              status: data.status
             };
             setCrops((prev) => [created, ...prev]);
+            alert('Crop saved successfully!');
+          } else if (error) {
+            alert('Error saving crop: ' + error.message);
           }
         }
-      } catch (err) {
-        console.error('Supabase save crop error', err);
+      } catch (error) {
+        console.error('Supabase save crop error', error);
       }
     })();
 
-    setCropForm({ name: '', field: '', stock: '' });
-    setCropFormMode('inventory');
+    setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
     setEditCropId(null);
     setShowCropForm(false);
   };
 
-  const handleSaveRecord = (e) => {
-    e.preventDefault();
-    if (!recordForm.title.trim()) return;
-    if (!recordForm.crop) return;
-    if (!recordForm.scheduleAt) return;
-
-    const parsedQuantity = parseQuantity(recordForm.quantity);
-    const scheduledDateLabel = formatShortDate(recordForm.scheduleAt);
-    const newRecord = {
-      ...recordForm,
-      quantity: parsedQuantity,
-      date: scheduledDateLabel,
-      icon: '📋',
-      color: '#e8f5e9',
-      status: 'Scheduled'
-    };
-
-    // Persist record to Supabase, then update local state
-    (async () => {
-      try {
-        if (editRecordId) {
-          const previousRecord = records.find((record) => record.id === editRecordId);
-          const { data, error } = await supabase
-            .from('records')
-            .update({
-              title: newRecord.title,
-              field: newRecord.field,
-              crop: newRecord.crop,
-              qty_amount: parsedQuantity.amount,
-              qty_unit: parsedQuantity.unit,
-              schedule_at: newRecord.scheduleAt,
-              notes: newRecord.notes,
-              status: newRecord.status
-            })
-            .eq('id', editRecordId)
-            .select()
-            .single();
-
-          if (!error && data) {
-            setRecords((prev) => prev.map((record) => (
-              record.id === editRecordId ? { ...record, ...newRecord, id: editRecordId } : record
-            )));
-
-            if (previousRecord) {
-              setCrops((prev) => prev.map((crop) => {
-                if (crop.name === previousRecord.crop && crop.name === recordForm.crop) {
-                  const difference = {
-                    amount: parsedQuantity.amount - (previousRecord.quantity?.amount || 0),
-                    unit: parsedQuantity.unit || previousRecord.quantity?.unit || ''
-                  };
-                  return { ...crop, stock: changeQuantities(crop.stock, difference) };
-                }
-
-                if (crop.name === previousRecord.crop && crop.name !== recordForm.crop) {
-                  return { ...crop, stock: subtractQuantities(crop.stock, previousRecord.quantity) };
-                }
-
-                if (crop.name === recordForm.crop && crop.name !== previousRecord.crop) {
-                  return { ...crop, stock: addQuantities(crop.stock, parsedQuantity) };
-                }
-
-                return crop;
-              }));
-            }
-          }
-        } else {
-          const { data, error } = await supabase
-            .from('records')
-            .insert([{
-              title: newRecord.title,
-              field: newRecord.field,
-              crop: newRecord.crop,
-              qty_amount: parsedQuantity.amount,
-              qty_unit: parsedQuantity.unit,
-              schedule_at: newRecord.scheduleAt,
-              notes: newRecord.notes,
-              status: newRecord.status
-            }])
-            .select()
-            .single();
-
-          if (!error && data) {
-            const created = {
-              id: data.id,
-              ...newRecord
-            };
-            setRecords((prev) => [created, ...prev]);
-
-            setCrops((prev) => prev.map((crop) => (
-              crop.name === recordForm.crop
-                ? { ...crop, stock: addQuantities(crop.stock, parsedQuantity) }
-                : crop
-            )));
-          }
-        }
-      } catch (err) {
-        console.error('Supabase save record error', err);
-      }
-    })();
-
-    if (recordForm.crop) {
-      setSelectedCrop(recordForm.crop);
-    }
-
-    setRecordForm({ title: '', field: '', crop: '', quantity: '', scheduleAt: '', notes: '' });
-    setEditRecordId(null);
-    setShowRecordForm(false);
-  };
-
   const handleEditCrop = (crop) => {
-    setCropFormMode('inventory');
-    setCropForm({ name: crop.name, field: crop.field, stock: formatQuantity(crop.stock) });
+    setCropForm({
+      name: crop.name || '',
+      variety: crop.variety || '',
+      datePlanted: crop.date_planted || crop.datePlanted || '',
+      area: crop.area || '',
+      status: crop.status || 'Growing'
+    });
     setEditCropId(crop.id);
     setShowCropForm(true);
   };
 
   const handleDeleteCrop = (cropId) => {
-    const cropToDelete = crops.find((crop) => crop.id === cropId);
-    if (!cropToDelete) return;
+    if (window.confirm('Are you sure you want to delete this crop?')) {
+      (async () => {
+        try {
+          const { error } = await supabase
+            .from('crops')
+            .delete()
+            .eq('id', cropId);
 
-    (async () => {
-      try {
-        const { error } = await supabase.from('crops').delete().eq('id', cropId);
-        if (!error) {
-          setCrops((prev) => prev.filter((crop) => crop.id !== cropId));
-          setRecords((prev) => prev.filter((record) => record.crop !== cropToDelete.name));
-          if (selectedCrop === cropToDelete.name) setSelectedCrop('All Crops');
-        }
-      } catch (err) {
-        console.error('Supabase delete crop error', err);
-      }
-    })();
-  };
-
-  const handleEditRecord = (record) => {
-    setRecordForm({
-      title: record.title,
-      field: record.field,
-      crop: record.crop,
-      quantity: formatQuantity(record.quantity),
-      scheduleAt: record.scheduleAt || '',
-      notes: record.notes
-    });
-    setEditRecordId(record.id);
-    setShowRecordForm(true);
-  };
-
-  const handleDeleteRecord = (recordId) => {
-    const recordToDelete = records.find((record) => record.id === recordId);
-    if (!recordToDelete) return;
-
-    (async () => {
-      try {
-        const { error } = await supabase.from('records').delete().eq('id', recordId);
-        if (!error) {
-          if (recordToDelete) {
-            setCrops((prev) => prev.map((crop) => (
-              crop.name === recordToDelete.crop
-                ? { ...crop, stock: subtractQuantities(crop.stock, recordToDelete.quantity) }
-                : crop
-            )));
+          if (error) {
+            throw error;
+          } else {
+            setCrops((prev) => prev.filter((crop) => crop.id !== cropId));
+            alert('Crop deleted successfully!');
           }
-          setRecords((prev) => prev.filter((record) => record.id !== recordId));
+        } catch (error) {
+          console.error('Error deleting crop:', error);
+          alert('Error deleting crop: ' + error.message);
         }
-      } catch (err) {
-        console.error('Supabase delete record error', err);
+      })();
+    }
+  };
+
+  const toggleMenu = (cropId) => {
+    setMenuOpenId(menuOpenId === cropId ? null : cropId);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Growing':
+        return '#4caf50';
+      case 'Planned':
+        return '#2196f3';
+      case 'Harvested':
+        return '#ff9800';
+      case 'Active':
+        return '#4caf50';
+      case 'In Stock':
+        return '#4caf50';
+      case 'Low Stock':
+        return '#ff9800';
+      case 'Out of Stock':
+        return '#f44336';
+      default:
+        return '#9e9e9e';
+    }
+  };
+
+  // ============ INPUT HANDLERS ============
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setInputForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveInput = (event) => {
+    event.preventDefault();
+    if (!inputForm.name.trim()) return;
+
+    (async () => {
+      try {
+        if (editInputId) {
+          const { data, error } = await supabase
+            .from('inputs')
+            .update({
+              name: inputForm.name,
+              type: inputForm.type,
+              quantity: parseFloat(inputForm.quantity) || 0,
+              unit: inputForm.unit,
+              date_added: inputForm.dateAdded,
+              status: inputForm.status
+            })
+            .eq('id', editInputId)
+            .select()
+            .single();
+
+          if (!error && data) {
+            setInputs((prev) => prev.map((item) => (
+              item.id === editInputId
+                ? { ...item, name: data.name, type: data.type, quantity: data.quantity, unit: data.unit, dateAdded: data.date_added, status: data.status }
+                : item
+            )));
+            alert('Input record updated successfully!');
+          } else if (error) {
+            alert('Error updating input: ' + error.message);
+          }
+        } else {
+          const result = await supabase
+            .from('inputs')
+            .insert([{
+              name: inputForm.name,
+              type: inputForm.type,
+              quantity: parseFloat(inputForm.quantity) || 0,
+              unit: inputForm.unit,
+              date_added: inputForm.dateAdded,
+              status: inputForm.status
+            }])
+            .select();
+
+          const { data, error } = result;
+
+          if (error) {
+            setToast('Error saving input.');
+          } else if (data) {
+            // Supabase may return an array; take first item if so.
+            const created = Array.isArray(data) ? data[0] : data;
+            if (created) {
+              setInputs((prev) => [{ id: created.id, name: created.name, type: created.type, quantity: created.quantity, unit: created.unit, dateAdded: created.date_added, status: created.status }, ...prev]);
+              setToast('Input record saved successfully!');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error saving input:', error);
       }
     })();
+
+    setInputForm({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' });
+    setEditInputId(null);
+    setShowInputForm(false);
   };
 
-  const handleMarkCompleted = (recordId) => {
-    setRecords((prev) => prev.map((record) => (
-      record.id === recordId
-        ? { ...record, status: 'Completed' }
-        : record
-    )));
+  const handleEditInput = (item) => {
+    setInputForm({
+      name: item.name || '',
+      type: item.type || '',
+      quantity: item.quantity || '',
+      unit: item.unit || '',
+      dateAdded: item.dateAdded || '',
+      status: item.status || 'In Stock'
+    });
+    setEditInputId(item.id);
+    setShowInputForm(true);
   };
 
-  const handleCropFilter = (name) => {
-    setSelectedCrop(name);
+  const handleDeleteInput = (inputId) => {
+    if (window.confirm('Delete this input record?')) {
+      (async () => {
+        try {
+          const { error } = await supabase.from('inputs').delete().eq('id', inputId);
+          if (error) throw error;
+          setInputs((prev) => prev.filter((item) => item.id !== inputId));
+          alert('Input record deleted successfully!');
+        } catch (error) {
+          console.error('Error deleting input:', error);
+          alert('Error deleting input: ' + error.message);
+        }
+      })();
+    }
   };
 
-  const handlePrint = () => {
-    window.print();
+  // ============ EQUIPMENT HANDLERS ============
+  const handleEquipmentChange = (event) => {
+    const { name, value } = event.target;
+    setEquipmentForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveEquipment = (event) => {
+    event.preventDefault();
+    if (!equipmentForm.name.trim()) return;
+
+    (async () => {
+      try {
+        if (editEquipmentId) {
+          const { data, error } = await supabase
+            .from('equipment')
+            .update({
+              name: equipmentForm.name,
+              type: equipmentForm.type,
+              status: equipmentForm.status,
+              last_maintenance: equipmentForm.lastMaintenance,
+              cost: parseFloat(equipmentForm.cost) || 0
+            })
+            .eq('id', editEquipmentId)
+            .select()
+            .single();
+
+          if (!error && data) {
+            setEquipment((prev) => prev.map((item) => (
+              item.id === editEquipmentId
+                ? { ...item, name: data.name, type: data.type, status: data.status, lastMaintenance: data.last_maintenance, cost: data.cost }
+                : item
+            )));
+            alert('Equipment record updated successfully!');
+          } else if (error) {
+            alert('Error updating equipment: ' + error.message);
+          }
+        } else {
+          const { data, error } = await supabase
+            .from('equipment')
+            .insert([{
+              name: equipmentForm.name,
+              type: equipmentForm.type,
+              status: equipmentForm.status,
+              last_maintenance: equipmentForm.lastMaintenance,
+              cost: parseFloat(equipmentForm.cost) || 0
+            }])
+            .select()
+            .single();
+
+          if (!error && data) {
+            setEquipment((prev) => [...prev, { id: data.id, name: data.name, type: data.type, status: data.status, lastMaintenance: data.last_maintenance, cost: data.cost }]);
+            alert('Equipment record saved successfully!');
+          } else if (error) {
+            alert('Error saving equipment: ' + error.message);
+          }
+        }
+      } catch (error) {
+        console.error('Error saving equipment:', error);
+      }
+    })();
+
+    setEquipmentForm({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' });
+    setEditEquipmentId(null);
+    setShowEquipmentForm(false);
+  };
+
+  const handleEditEquipment = (item) => {
+    setEquipmentForm({
+      name: item.name,
+      type: item.type || '',
+      status: item.status || 'Active',
+      lastMaintenance: item.lastMaintenance || '',
+      cost: item.cost || ''
+    });
+    setEditEquipmentId(item.id);
+    setShowEquipmentForm(true);
+  };
+
+  const handleDeleteEquipment = (equipmentId) => {
+    if (window.confirm('Delete this equipment record?')) {
+      (async () => {
+        try {
+          const { error } = await supabase.from('equipment').delete().eq('id', equipmentId);
+          if (error) throw error;
+          setEquipment((prev) => prev.filter((item) => item.id !== equipmentId));
+          alert('Equipment record deleted successfully!');
+        } catch (error) {
+          console.error('Error deleting equipment:', error);
+          alert('Error deleting equipment: ' + error.message);
+        }
+      })();
+    }
+  };
+
+  // ============ FUEL HANDLERS ============
+  const handleFuelChange = (event) => {
+    const { name, value } = event.target;
+    setFuelForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveFuel = (event) => {
+    event.preventDefault();
+    if (!fuelForm.quantity) return;
+
+    (async () => {
+      try {
+        if (editFuelId) {
+          const { data, error } = await supabase
+            .from('fuels')
+            .update({
+              type: fuelForm.fuelType,
+              quantity: parseFloat(fuelForm.quantity) || 0,
+              unit: fuelForm.unit,
+              date: fuelForm.date,
+              cost: parseFloat(fuelForm.cost) || 0
+            })
+            .eq('id', editFuelId)
+            .select()
+            .single();
+
+          if (!error && data) {
+            setFuels((prev) => prev.map((item) => (
+              item.id === editFuelId
+                ? { ...item, type: data.type, quantity: data.quantity, unit: data.unit, date: data.date, cost: data.cost }
+                : item
+            )));
+            alert('Fuel record updated successfully!');
+          } else if (error) {
+            alert('Error updating fuel: ' + error.message);
+          }
+        } else {
+          const { data, error } = await supabase
+            .from('fuels')
+            .insert([{
+              type: fuelForm.fuelType,
+              quantity: parseFloat(fuelForm.quantity) || 0,
+              unit: fuelForm.unit,
+              date: fuelForm.date,
+              cost: parseFloat(fuelForm.cost) || 0
+            }])
+            .select()
+            .single();
+
+          if (!error && data) {
+            setFuels((prev) => [...prev, { id: data.id, type: data.type, quantity: data.quantity, unit: data.unit, date: data.date, cost: data.cost }]);
+            alert('Fuel record saved successfully!');
+          } else if (error) {
+            alert('Error saving fuel: ' + error.message);
+          }
+        }
+      } catch (error) {
+        console.error('Error saving fuel:', error);
+      }
+    })();
+
+    setFuelForm({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' });
+    setEditFuelId(null);
+    setShowFuelForm(false);
+  };
+
+  const handleEditFuel = (item) => {
+    setFuelForm({
+      type: item.type || 'Diesel',
+      quantity: item.quantity || '',
+      unit: item.unit || 'liters',
+      date: item.date || '',
+      cost: item.cost || '',
+      fuelType: item.type || 'Diesel'
+    });
+    setEditFuelId(item.id);
+    setShowFuelForm(true);
+  };
+
+  const handleDeleteFuel = (fuelId) => {
+    if (window.confirm('Delete this fuel record?')) {
+      (async () => {
+        try {
+          const { error } = await supabase.from('fuels').delete().eq('id', fuelId);
+          if (error) throw error;
+          setFuels((prev) => prev.filter((item) => item.id !== fuelId));
+          alert('Fuel record deleted successfully!');
+        } catch (error) {
+          console.error('Error deleting fuel:', error);
+          alert('Error deleting fuel: ' + error.message);
+        }
+      })();
+    }
+  };
+
+  // ============ HARVEST HANDLERS ============
+  const handleHarvestChange = (event) => {
+    const { name, value } = event.target;
+    setHarvestForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveHarvest = (event) => {
+    event.preventDefault();
+    if (!harvestForm.cropName.trim()) return;
+
+    (async () => {
+      try {
+        if (editHarvestId) {
+          const { data, error } = await supabase
+            .from('harvests')
+            .update({
+              crop_name: harvestForm.cropName,
+              quantity: parseFloat(harvestForm.quantity) || 0,
+              unit: harvestForm.unit,
+              date_harvested: harvestForm.dateHarvested,
+              status: harvestForm.status
+            })
+            .eq('id', editHarvestId)
+            .select()
+            .single();
+
+          if (!error && data) {
+            setHarvests((prev) => prev.map((item) => (
+              item.id === editHarvestId
+                ? { ...item, cropName: data.crop_name, quantity: data.quantity, unit: data.unit, dateHarvested: data.date_harvested, status: data.status }
+                : item
+            )));
+            alert('Harvest record updated successfully!');
+          } else if (error) {
+            alert('Error updating harvest: ' + error.message);
+          }
+        } else {
+          const { data, error } = await supabase
+            .from('harvests')
+            .insert([{
+              crop_name: harvestForm.cropName,
+              quantity: parseFloat(harvestForm.quantity) || 0,
+              unit: harvestForm.unit,
+              date_harvested: harvestForm.dateHarvested,
+              status: harvestForm.status
+            }])
+            .select()
+            .single();
+
+          if (!error && data) {
+            setHarvests((prev) => [...prev, { id: data.id, cropName: data.crop_name, quantity: data.quantity, unit: data.unit, dateHarvested: data.date_harvested, status: data.status }]);
+            alert('Harvest record saved successfully!');
+          } else if (error) {
+            alert('Error saving harvest: ' + error.message);
+          }
+        }
+      } catch (error) {
+        console.error('Error saving harvest:', error);
+      }
+    })();
+
+    setHarvestForm({ cropName: '', quantity: '', unit: 'kg', dateHarvested: '', status: 'Harvested' });
+    setEditHarvestId(null);
+    setShowHarvestForm(false);
+  };
+
+  const handleEditHarvest = (item) => {
+    setHarvestForm({
+      cropName: item.cropName || '',
+      quantity: item.quantity || '',
+      unit: item.unit || 'kg',
+      dateHarvested: item.dateHarvested || '',
+      status: item.status || 'Harvested'
+    });
+    setEditHarvestId(item.id);
+    setShowHarvestForm(true);
+  };
+
+  const handleDeleteHarvest = (harvestId) => {
+    if (window.confirm('Delete this harvest record?')) {
+      (async () => {
+        try {
+          const { error } = await supabase.from('harvests').delete().eq('id', harvestId);
+          if (error) throw error;
+          setHarvests((prev) => prev.filter((item) => item.id !== harvestId));
+          alert('Harvest record deleted successfully!');
+        } catch (error) {
+          console.error('Error deleting harvest:', error);
+          alert('Error deleting harvest: ' + error.message);
+        }
+      })();
+    }
   };
 
   return (
     <div className="farm-records">
-      <div className="records-header">
-        <div>
-          <h2>Crop Inventory</h2>
-          <p>Manage crop items and related activity records separately.</p>
+      <div className="farm-records-container">
+        {/* Header */}
+        <div className="farm-records-header">
+          <h1>Farm Records</h1>
         </div>
-        <div className="header-actions no-print">
-          <button className="print-btn" onClick={handlePrint}>
-            🖨️ Print Summary
+
+        {toast && <div className="toast">{toast}</div>}
+
+        {/* Tabs */}
+        <div className="farm-records-tabs">
+          <button
+            className={`tab-button ${activeTab === 'crops' ? 'active' : ''}`}
+            onClick={() => setActiveTab('crops')}
+          >
+            🌾 Crops
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'inputs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('inputs')}
+          >
+            📦 Inputs
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'equipment' ? 'active' : ''}`}
+            onClick={() => setActiveTab('equipment')}
+          >
+            🚜 Equipment
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'fuel' ? 'active' : ''}`}
+            onClick={() => setActiveTab('fuel')}
+          >
+            ⚙️ Fuel
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'harvest' ? 'active' : ''}`}
+            onClick={() => setActiveTab('harvest')}
+          >
+            🌾 Harvest
           </button>
         </div>
-      </div>
 
-      <div className="quick-row">
-        <div className="quick-stats">
-          {quickStats.map((stat) => (
-            <div key={stat.label} className="quick-stat-card" style={{ '--stat-accent': stat.accent, '--stat-soft': stat.soft }}>
-              <div className="quick-stat-icon">{stat.icon}</div>
-              <div className="quick-stat-copy">
-                <div className="quick-stat-label">{stat.label}</div>
-                <div className="quick-stat-value">{stat.value}</div>
-              </div>
-              <div className="quick-stat-trend">{stat.trend}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="records-layout">
-        <section className="section-card inventory-panel">
-          <div className="section-title-row inventory-toolbar">
-            <div>
-              <h3>Inventory</h3>
-            </div>
-            <div className="header-actions no-print">
-              <button className="secondary-btn" onClick={() => {
-                setShowCropForm(!showCropForm);
-                setShowRecordForm(false);
-                setEditCropId(null);
-                setCropFormMode('inventory');
-                setCropForm({ name: '', field: '', stock: '' });
-              }}>
+        {/* Crops Tab */}
+        {activeTab === 'crops' && (
+          <div className="tab-content">
+            {/* Search and Add Button */}
+            <div className="tab-toolbar">
+              <input
+                type="text"
+                placeholder="Search crops..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+              <button 
+                className="add-record-btn"
+                onClick={() => {
+                  setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+                  setEditCropId(null);
+                  setShowCropForm(true);
+                }}
+              >
                 + Add Record
               </button>
-              <button className="secondary-btn" onClick={() => {
-                setShowCropForm(true);
-                setShowRecordForm(false);
+            </div>
+
+            {/* Form */}
+            {showCropForm && (
+              <div className="crop-form-overlay" onClick={() => {
+                setShowCropForm(false);
+                setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
                 setEditCropId(null);
-                setCropFormMode('crop');
-                setCropForm({ name: '', field: '', stock: '' });
               }}>
-                + Add Crop
-              </button>
-            </div>
-          </div>
-
-          {showCropForm && (
-            <div className="add-record-form">
-              <form onSubmit={handleSaveCrop}>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Crop Name</label>
-                    {cropFormMode === 'crop' ? (
-                      <input
-                        type="text"
-                        name="name"
-                        value={cropForm.name}
-                        onChange={handleCropInputChange}
-                        placeholder="Enter new crop name"
-                        required
-                      />
-                    ) : (
-                      <select
-                        name="name"
-                        value={cropForm.name}
-                        onChange={handleCropInputChange}
-                        required
-                      >
-                        <option value="">Select Crop</option>
-                        {cropNames.map((name) => (
-                          <option key={name} value={name}>{name}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label>Field</label>
-                    {cropFormMode === 'crop' ? (
-                      <input
-                        type="text"
-                        name="field"
-                        value={cropForm.field}
-                        onChange={handleCropInputChange}
-                        placeholder="Enter new field"
-                        required
-                      />
-                    ) : (
-                      <select
-                        name="field"
-                        value={cropForm.field}
-                        onChange={handleCropInputChange}
-                        required
-                      >
-                        <option value="">Select Field</option>
-                        {fieldNames.map((fieldName) => (
-                          <option key={fieldName} value={fieldName}>{fieldName}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                </div>
-                {cropFormMode !== 'crop' && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Stock</label>
-                      <input
-                        type="text"
-                        name="stock"
-                        value={cropForm.stock}
-                        onChange={handleCropInputChange}
-                        placeholder="500 seedlings"
-                      />
+                <div className="crop-form-card crop-form-shell" onClick={(event) => event.stopPropagation()}>
+                  <div className="crop-form-shell-header">
+                    <div>
+                      <h3>{editCropId ? 'Edit Crop Record' : 'Add Crop Record'}</h3>
+                      <p>{editCropId ? 'Update the crop details below.' : 'Fill in the crop details to create a new record.'}</p>
                     </div>
+                    <button
+                      type="button"
+                      className="crop-form-close-btn"
+                      onClick={() => {
+                        setShowCropForm(false);
+                        setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+                        setEditCropId(null);
+                      }}
+                      aria-label="Close crop form"
+                    >
+                      ×
+                    </button>
                   </div>
-                )}
-                <div className="form-actions">
-                  <button type="submit" className="submit-btn">{editCropId ? 'Update Crop' : 'Save Crop'}</button>
-                  <button
-                    type="button"
-                    className="cancel-btn"
-                    onClick={() => setShowCropForm(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
 
-          <div className="crop-list inventory-strip">
-            {crops.map((crop) => (
-              <div key={crop.id} className="crop-card" style={{ '--crop-accent': crop.color }}>
-                <div className="crop-card-icon" style={{ backgroundColor: crop.color }}>{crop.name.charAt(0)}</div>
-                <div className="crop-card-details">
-                  <div className="crop-name">{crop.name}</div>
-                  <div className="crop-meta">Field: {crop.field}</div>
-                  <div className="crop-meta">Stock: {formatQuantity(crop.stock)}</div>
-                  <div className="crop-progress"><span style={{ width: `${Math.min(100, crop.stock.amount ? crop.stock.amount / 5 : 20)}%` }} /></div>
-                </div>
-                <div className="crop-actions crop-actions-vertical">
-                  <button className="icon-btn edit-btn no-print" onClick={() => handleEditCrop(crop)}>⋮</button>
-                  <button className="icon-btn delete-btn no-print" onClick={() => handleDeleteCrop(crop.id)}>›</button>
+                  <form onSubmit={handleSaveCrop}>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Crop Name *</label>
+                        <input
+                          type="text"
+                          name="name"
+                          value={cropForm.name}
+                          onChange={handleCropInputChange}
+                          placeholder="Enter crop name (e.g., Rice)"
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Variety</label>
+                        <input
+                          type="text"
+                          name="variety"
+                          value={cropForm.variety}
+                          onChange={handleCropInputChange}
+                          placeholder="Enter variety (e.g., NSIC Rc 222)"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Date Planted</label>
+                        <input
+                          type="date"
+                          name="datePlanted"
+                          value={cropForm.datePlanted}
+                          onChange={handleCropInputChange}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Area (ha)</label>
+                        <input
+                          type="number"
+                          name="area"
+                          value={cropForm.area}
+                          onChange={handleCropInputChange}
+                          placeholder="Enter area"
+                          step="0.01"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select name="status" value={cropForm.status} onChange={handleCropInputChange}>
+                          <option value="Growing">Growing</option>
+                          <option value="Planned">Planned</option>
+                          <option value="Harvested">Harvested</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="btn btn-primary">
+                        {editCropId ? 'Update Crop' : 'Save Crop'}
+                      </button>
+                      <button 
+                        type="button" 
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setShowCropForm(false);
+                          setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+                          setEditCropId(null);
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
+            )}
 
-        <section className="section-card records-panel">
-          <div className="section-title-row">
-            <div>
-              <h3>Activity Records</h3>
-            </div>
-            <button className="secondary-btn no-print" onClick={() => {
-              setShowRecordForm(!showRecordForm);
-              setShowCropForm(false);
-              setEditRecordId(null);
-              setRecordForm({ title: '', field: '', crop: '', quantity: '', scheduleAt: '', notes: '' });
-            }}>
-              + Add Activity
-            </button>
-          </div>
-
-          <div className="filter-row">
-            <button
-              className={`filter-btn no-print ${selectedCrop === 'All Crops' ? 'active' : ''}`}
-              onClick={() => handleCropFilter('All Crops')}
-            >
-              All Crops
-            </button>
-            {cropNames.map((name) => (
-              <button
-                key={name}
-                className={`filter-btn no-print ${selectedCrop === name ? 'active' : ''}`}
-                onClick={() => handleCropFilter(name)}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-
-          {showRecordForm && (
-            <div className="add-record-form">
-              <form onSubmit={handleSaveRecord}>
-                <div className="form-group">
-                  <label>Record Title</label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={recordForm.title}
-                    onChange={handleRecordInputChange}
-                    placeholder="Enter record title"
-                    required
-                  />
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Field Name</label>
-                    <select
-                      name="field"
-                      value={recordForm.field}
-                      onChange={handleRecordInputChange}
-                      required
-                    >
-                      <option value="">Select Field</option>
-                      {fieldNames.map((fieldName) => (
-                        <option key={fieldName} value={fieldName}>{fieldName}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Crop</label>
-                    <select
-                      name="crop"
-                      value={recordForm.crop}
-                      onChange={handleRecordInputChange}
-                      required
-                    >
-                      <option value="">Select Crop</option>
-                      {cropNames.map((name) => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Quantity</label>
-                    <input
-                      type="text"
-                      name="quantity"
-                      value={recordForm.quantity}
-                      onChange={handleRecordInputChange}
-                      placeholder="Quantity"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Schedule</label>
-                    <input
-                      type="datetime-local"
-                      name="scheduleAt"
-                      value={recordForm.scheduleAt}
-                      onChange={handleRecordInputChange}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Notes</label>
-                    <textarea
-                      name="notes"
-                      value={recordForm.notes}
-                      onChange={handleRecordInputChange}
-                      placeholder="Notes"
-                      rows="2"
-                    />
-                  </div>
-                </div>
-                <div className="form-actions">
-                  <button type="submit" className="submit-btn">{editRecordId ? 'Update Record' : 'Save Record'}</button>
-                  <button
-                    type="button"
-                    className="cancel-btn"
-                    onClick={() => setShowRecordForm(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="records-table-wrap">
-            <table className="records-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Activity</th>
-                  <th>Crop</th>
-                  <th>Field</th>
-                  <th>Qty</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRecords.map((record) => (
-                  <tr key={record.id} style={{ '--row-accent': record.color }}>
-                    <td>{record.date}</td>
-                    <td>{record.title}</td>
-                    <td>{record.crop}</td>
-                    <td>{record.field}</td>
-                    <td>{formatQuantity(record.quantity)}</td>
-                    <td>
-                      <span className={`status-badge ${record.computedStatus.toLowerCase().replace(/\s+/g, '-')}`}>
-                        {record.computedStatus}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="record-actions">
-                        {record.computedStatus === 'Overdue' && (
-                          <button
-                            className="status-action-btn no-print"
-                            onClick={() => handleMarkCompleted(record.id)}
-                            aria-label="Mark activity as completed"
-                            title="Mark as completed"
+            {/* Table */}
+            {filteredCrops.length > 0 ? (
+              <div className="table-wrapper">
+                <table className="records-table">
+                  <thead>
+                    <tr>
+                      <th>Crop Name</th>
+                      <th>Variety</th>
+                      <th>Date Planted</th>
+                      <th>Area (ha)</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCrops.map((crop) => (
+                      <tr key={crop.id}>
+                        <td className="crop-name">{crop.name}</td>
+                        <td>{crop.variety || '-'}</td>
+                        <td>
+                          {(crop.date_planted || crop.datePlanted)
+                            ? new Date(crop.date_planted || crop.datePlanted).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : '-'
+                          }
+                        </td>
+                        <td>{crop.area || '-'}</td>
+                        <td>
+                          <span 
+                            className="status-badge"
+                            style={{ 
+                              backgroundColor: getStatusColor(crop.status),
+                              color: 'white'
+                            }}
                           >
-                            ✓
-                          </button>
-                        )}
-                        <button className="icon-btn edit-btn no-print" onClick={() => handleEditRecord(record)}>✏️</button>
-                        <button className="icon-btn delete-btn no-print" onClick={() => handleDeleteRecord(record.id)}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            {crop.status || 'Growing'}
+                          </span>
+                        </td>
+                        <td className="actions-cell">
+                          <div className="action-menu">
+                            <button
+                              className="menu-btn"
+                              onClick={() => toggleMenu(crop.id)}
+                              title="More actions"
+                            >
+                              ⋮
+                            </button>
+                            {menuOpenId === crop.id && (
+                              <div className="dropdown-menu">
+                                <button onClick={() => { toggleMenu(null); handleEditCrop(crop); }}>
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => { toggleMenu(null); handleDeleteCrop(crop.id); }}
+                                  className="danger"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <p>No crops found. {searchTerm && 'Try a different search or '} Add your first crop record!</p>
+              </div>
+            )}
           </div>
-        </section>
+        )}
+
+        {/* Other Tabs - Coming Soon */}
+
+        {/* Inputs Tab */}
+        {activeTab === 'inputs' && (
+          <div className="tab-content">
+            <div className="tab-toolbar">
+              <input
+                type="text"
+                placeholder="Search inputs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+              <button 
+                className="add-record-btn"
+                onClick={() => {
+                  setInputForm({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' });
+                  setEditInputId(null);
+                  setShowInputForm(true);
+                }}
+              >
+                + Add Record
+              </button>
+            </div>
+
+            {showInputForm && (
+              <div className="crop-form-overlay" onClick={() => { setShowInputForm(false); setInputForm({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' }); setEditInputId(null); }}>
+                <div className="crop-form-card crop-form-shell" onClick={(event) => event.stopPropagation()}>
+                  <div className="crop-form-shell-header">
+                    <div>
+                      <h3>{editInputId ? 'Edit Input Record' : 'Add Input Record'}</h3>
+                      <p>{editInputId ? 'Update the input details below.' : 'Fill in the input details to create a new record.'}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="crop-form-close-btn"
+                      onClick={() => { setShowInputForm(false); setInputForm({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' }); setEditInputId(null); }}
+                      aria-label="Close input form"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveInput}>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Input Name *</label>
+                        <input type="text" name="name" value={inputForm.name} onChange={handleInputChange} placeholder="e.g., Fertilizer, Pesticide" required />
+                      </div>
+                      <div className="form-group">
+                        <label>Type</label>
+                        <input type="text" name="type" value={inputForm.type} onChange={handleInputChange} placeholder="e.g., NPK, Herbicide" />
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Quantity</label>
+                        <input type="number" name="quantity" value={inputForm.quantity} onChange={handleInputChange} placeholder="Enter quantity" />
+                      </div>
+                      <div className="form-group">
+                        <label>Unit</label>
+                        <input type="text" name="unit" value={inputForm.unit} onChange={handleInputChange} placeholder="kg, liters, etc." />
+                      </div>
+                      <div className="form-group">
+                        <label>Date Added</label>
+                        <input type="date" name="dateAdded" value={inputForm.dateAdded} onChange={handleInputChange} />
+                      </div>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select name="status" value={inputForm.status} onChange={handleInputChange}>
+                          <option value="In Stock">In Stock</option>
+                          <option value="Low Stock">Low Stock</option>
+                          <option value="Out of Stock">Out of Stock</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="btn btn-primary">{editInputId ? 'Update Input' : 'Save Input'}</button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setShowInputForm(false); setInputForm({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' }); setEditInputId(null); }}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {inputs.length > 0 ? (
+              <div className="table-wrapper">
+                <table className="records-table">
+                  <thead>
+                    <tr>
+                      <th>Input Name</th>
+                      <th>Type</th>
+                      <th>Quantity</th>
+                      <th>Unit</th>
+                      <th>Date Added</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inputs.filter(item => !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                      <tr key={item.id}>
+                        <td className="crop-name">{item.name}</td>
+                        <td>{item.type || '-'}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.unit}</td>
+                        <td>{item.dateAdded ? new Date(item.dateAdded).toLocaleDateString() : '-'}</td>
+                        <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
+                        <td className="actions-cell">
+                          <div className="action-menu">
+                            <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
+                            {menuOpenId === item.id && (
+                              <div className="dropdown-menu">
+                                <button onClick={() => { setMenuOpenId(null); handleEditInput(item); }}>Edit</button>
+                                <button onClick={() => { setMenuOpenId(null); handleDeleteInput(item.id); }} className="danger">Delete</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state"><p>No inputs found. Add your first input record!</p></div>
+            )}
+          </div>
+        )}
+
+        {/* Equipment Tab */}
+        {activeTab === 'equipment' && (
+          <div className="tab-content">
+            <div className="tab-toolbar">
+              <input type="text" placeholder="Search equipment..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
+              <button className="add-record-btn" onClick={() => { setEquipmentForm({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' }); setEditEquipmentId(null); setShowEquipmentForm(true); }}>+ Add Record</button>
+            </div>
+
+            {showEquipmentForm && (
+              <div className="crop-form-overlay" onClick={() => { setShowEquipmentForm(false); setEquipmentForm({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' }); setEditEquipmentId(null); }}>
+                <div className="crop-form-card crop-form-shell" onClick={(e) => e.stopPropagation()}>
+                  <div className="crop-form-shell-header">
+                    <div>
+                      <h3>{editEquipmentId ? 'Edit Equipment Record' : 'Add Equipment Record'}</h3>
+                      <p>{editEquipmentId ? 'Update the equipment details below.' : 'Fill in the equipment details to create a new record.'}</p>
+                    </div>
+                    <button type="button" className="crop-form-close-btn" onClick={() => { setShowEquipmentForm(false); setEquipmentForm({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' }); setEditEquipmentId(null); }} aria-label="Close equipment form">×</button>
+                  </div>
+
+                  <form onSubmit={handleSaveEquipment}>
+                    <div className="form-row">
+                      <div className="form-group"><label>Equipment Name *</label><input type="text" name="name" value={equipmentForm.name} onChange={handleEquipmentChange} placeholder="e.g., Tractor, Plow" required /></div>
+                      <div className="form-group"><label>Type</label><input type="text" name="type" value={equipmentForm.type} onChange={handleEquipmentChange} placeholder="e.g., Vehicle, Tool" /></div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select name="status" value={equipmentForm.status} onChange={handleEquipmentChange}>
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                          <option value="Under Maintenance">Under Maintenance</option>
+                        </select>
+                      </div>
+                      <div className="form-group"><label>Last Maintenance</label><input type="date" name="lastMaintenance" value={equipmentForm.lastMaintenance} onChange={handleEquipmentChange} /></div>
+                      <div className="form-group"><label>Cost</label><input type="number" name="cost" value={equipmentForm.cost} onChange={handleEquipmentChange} placeholder="Enter cost" /></div>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="btn btn-primary">{editEquipmentId ? 'Update Equipment' : 'Save Equipment'}</button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setShowEquipmentForm(false); setEquipmentForm({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' }); setEditEquipmentId(null); }}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {equipment.length > 0 ? (
+              <div className="table-wrapper">
+                <table className="records-table">
+                  <thead>
+                    <tr><th>Equipment Name</th><th>Type</th><th>Status</th><th>Last Maintenance</th><th>Cost</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {equipment.filter(item => !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                      <tr key={item.id}>
+                        <td className="crop-name">{item.name}</td>
+                        <td>{item.type || '-'}</td>
+                        <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
+                        <td>{item.lastMaintenance ? new Date(item.lastMaintenance).toLocaleDateString() : '-'}</td>
+                        <td>${item.cost || '0'}</td>
+                        <td className="actions-cell">
+                          <div className="action-menu">
+                            <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
+                            {menuOpenId === item.id && (
+                              <div className="dropdown-menu">
+                                <button onClick={() => { setMenuOpenId(null); handleEditEquipment(item); }}>Edit</button>
+                                <button onClick={() => { setMenuOpenId(null); handleDeleteEquipment(item.id); }} className="danger">Delete</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state"><p>No equipment found. Add your first equipment record!</p></div>
+            )}
+          </div>
+        )}
+
+        {/* Fuel Tab */}
+        {activeTab === 'fuel' && (
+          <div className="tab-content">
+            <div className="tab-toolbar">
+              <input type="text" placeholder="Search fuel records..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
+              <button className="add-record-btn" onClick={() => { setFuelForm({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' }); setEditFuelId(null); setShowFuelForm(true); }}>+ Add Record</button>
+            </div>
+
+            {showFuelForm && (
+              <div className="crop-form-overlay" onClick={() => { setShowFuelForm(false); setFuelForm({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' }); setEditFuelId(null); }}>
+                <div className="crop-form-card crop-form-shell" onClick={(e) => e.stopPropagation()}>
+                  <div className="crop-form-shell-header">
+                    <div>
+                      <h3>{editFuelId ? 'Edit Fuel Record' : 'Add Fuel Record'}</h3>
+                      <p>{editFuelId ? 'Update the fuel details below.' : 'Fill in the fuel details to create a new record.'}</p>
+                    </div>
+                    <button type="button" className="crop-form-close-btn" onClick={() => { setShowFuelForm(false); setFuelForm({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' }); setEditFuelId(null); }} aria-label="Close fuel form">×</button>
+                  </div>
+
+                  <form onSubmit={handleSaveFuel}>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Fuel Type *</label>
+                        <select name="fuelType" value={fuelForm.fuelType} onChange={handleFuelChange} required>
+                          <option value="Diesel">Diesel</option>
+                          <option value="Petrol">Petrol</option>
+                          <option value="LPG">LPG</option>
+                        </select>
+                      </div>
+                      <div className="form-group"><label>Quantity *</label><input type="number" name="quantity" value={fuelForm.quantity} onChange={handleFuelChange} placeholder="Enter quantity" required /></div>
+                      <div className="form-group"><label>Unit</label><input type="text" name="unit" value={fuelForm.unit} onChange={handleFuelChange} placeholder="liters" /></div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group"><label>Date</label><input type="date" name="date" value={fuelForm.date} onChange={handleFuelChange} /></div>
+                      <div className="form-group"><label>Cost</label><input type="number" name="cost" value={fuelForm.cost} onChange={handleFuelChange} placeholder="Enter cost" /></div>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="btn btn-primary">{editFuelId ? 'Update Fuel' : 'Save Fuel'}</button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setShowFuelForm(false); setFuelForm({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' }); setEditFuelId(null); }}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {fuels.length > 0 ? (
+              <div className="table-wrapper">
+                <table className="records-table">
+                  <thead>
+                    <tr><th>Fuel Type</th><th>Quantity</th><th>Unit</th><th>Date</th><th>Cost</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {fuels.filter(item => !searchTerm || item.type.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                      <tr key={item.id}>
+                        <td className="crop-name">{item.type}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.unit}</td>
+                        <td>{item.date ? new Date(item.date).toLocaleDateString() : '-'}</td>
+                        <td>${item.cost || '0'}</td>
+                        <td className="actions-cell">
+                          <div className="action-menu">
+                            <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
+                            {menuOpenId === item.id && (
+                              <div className="dropdown-menu">
+                                <button onClick={() => { setMenuOpenId(null); handleEditFuel(item); }}>Edit</button>
+                                <button onClick={() => { setMenuOpenId(null); handleDeleteFuel(item.id); }} className="danger">Delete</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state"><p>No fuel records found. Add your first fuel record!</p></div>
+            )}
+          </div>
+        )}
+
+        {/* Harvest Tab */}
+        {activeTab === 'harvest' && (
+          <div className="tab-content">
+            <div className="tab-toolbar">
+              <input type="text" placeholder="Search harvest records..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="search-input" />
+              <button className="add-record-btn" onClick={() => { setHarvestForm({ cropName: '', quantity: '', unit: 'kg', dateHarvested: '', status: 'Harvested' }); setEditHarvestId(null); setShowHarvestForm(true); }}>+ Add Record</button>
+            </div>
+
+            {showHarvestForm && (
+              <div className="crop-form-overlay" onClick={() => { setShowHarvestForm(false); setHarvestForm({ cropName: '', quantity: '', unit: 'kg', dateHarvested: '', status: 'Harvested' }); setEditHarvestId(null); }}>
+                <div className="crop-form-card crop-form-shell" onClick={(e) => e.stopPropagation()}>
+                  <div className="crop-form-shell-header">
+                    <div>
+                      <h3>{editHarvestId ? 'Edit Harvest Record' : 'Add Harvest Record'}</h3>
+                      <p>{editHarvestId ? 'Update the harvest details below.' : 'Fill in the harvest details to create a new record.'}</p>
+                    </div>
+                    <button type="button" className="crop-form-close-btn" onClick={() => { setShowHarvestForm(false); setHarvestForm({ cropName: '', quantity: '', unit: 'kg', dateHarvested: '', status: 'Harvested' }); setEditHarvestId(null); }} aria-label="Close harvest form">×</button>
+                  </div>
+
+                  <form onSubmit={handleSaveHarvest}>
+                    <div className="form-row">
+                      <div className="form-group"><label>Crop Name *</label><input type="text" name="cropName" value={harvestForm.cropName} onChange={handleHarvestChange} placeholder="e.g., Rice, Corn" required /></div>
+                      <div className="form-group"><label>Quantity *</label><input type="number" name="quantity" value={harvestForm.quantity} onChange={handleHarvestChange} placeholder="Enter quantity" required /></div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group"><label>Unit</label><input type="text" name="unit" value={harvestForm.unit} onChange={handleHarvestChange} placeholder="kg" /></div>
+                      <div className="form-group"><label>Date Harvested</label><input type="date" name="dateHarvested" value={harvestForm.dateHarvested} onChange={handleHarvestChange} /></div>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select name="status" value={harvestForm.status} onChange={handleHarvestChange}>
+                          <option value="Harvested">Harvested</option>
+                          <option value="Processed">Processed</option>
+                          <option value="Stored">Stored</option>
+                          <option value="Sold">Sold</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="btn btn-primary">{editHarvestId ? 'Update Harvest' : 'Save Harvest'}</button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setShowHarvestForm(false); setHarvestForm({ cropName: '', quantity: '', unit: 'kg', dateHarvested: '', status: 'Harvested' }); setEditHarvestId(null); }}>Cancel</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {harvests.length > 0 ? (
+              <div className="table-wrapper">
+                <table className="records-table">
+                  <thead>
+                    <tr><th>Crop Name</th><th>Quantity</th><th>Unit</th><th>Date Harvested</th><th>Status</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    {harvests.filter(item => !searchTerm || item.cropName.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                      <tr key={item.id}>
+                        <td className="crop-name">{item.cropName}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.unit}</td>
+                        <td>{item.dateHarvested ? new Date(item.dateHarvested).toLocaleDateString() : '-'}</td>
+                        <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
+                        <td className="actions-cell">
+                          <div className="action-menu">
+                            <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
+                            {menuOpenId === item.id && (
+                              <div className="dropdown-menu">
+                                <button onClick={() => { setMenuOpenId(null); handleEditHarvest(item); }}>Edit</button>
+                                <button onClick={() => { setMenuOpenId(null); handleDeleteHarvest(item.id); }} className="danger">Delete</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state"><p>No harvest records found. Add your first harvest record!</p></div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

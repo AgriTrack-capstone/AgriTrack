@@ -1,97 +1,78 @@
 import React, { useState } from 'react';
-import './styles/App.css'; 
+import './styles/App.css';
 import { supabase } from './supabaseClient';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
 import FarmRecords from './components/FarmRecords';
 import Reports from './components/Reports';
 import Alerts from './components/Alerts';
+import Accounts from './components/Accounts';
+import Inventory from './components/Inventory';
 import Login from './components/Login'; 
 
-const FarmSystem = () => {
-  const [user, setUser] = useState(null);
-
-  return (
-    <div className="main-container">
-      <Navbar />
-      
-      <header>
-        <h1>Farm Management Interface</h1>
-      </header>
-      
-      <main>
-        {/* Your primary dashboard or logic */}
-        <Dashboard />
-      </main>
-    </div>
-  );
-};
-// 
-
-// 
 const initialCrops = [
   {
     id: 1,
-    name: 'Tomato',
-    field: 'Rice Field A',
-    stock: { amount: 500, unit: 'seedlings' },
-    color: '#a5d6a7'
+    name: 'Nyam',
+    field: 'Rice Field D',
+    stock: { amount: 0, unit: 'kg' },
+    color: '#efe7c4'
   },
   {
     id: 2,
-    name: 'Corn',
-    field: 'Corn Field B',
-    stock: { amount: 120, unit: 'kg' },
-    color: '#eeeeee'
+    name: 'Carrots',
+    field: 'Rice Field B',
+    stock: { amount: 1000, unit: 'kg' },
+    color: '#f1d1a5'
   },
   {
     id: 3,
-    name: 'Vegetables',
-    field: 'Vegetable Plot C',
-    stock: { amount: 50, unit: 'kg' },
-    color: '#d8ead9'
+    name: 'Tomato',
+    field: 'Rice Field A',
+    stock: { amount: 1000, unit: 'kg' },
+    color: '#f4c2ba'
   }
 ];
 
 const initialRecords = [
   {
     id: 1,
-    title: 'Tomato Seedling Transplant',
-    field: 'Rice Field A',
-    crop: 'Tomato',
-    quantity: { amount: 500, unit: 'seedlings' },
-    scheduleAt: '2026-04-21T08:00',
-    date: 'Mar 4',
-    notes: 'Transplanted healthy seedlings',
-    icon: '✅',
-    color: '#a5d6a7',
-    status: 'Completed'
+    title: 'Carrot Field Check',
+    field: 'Rice Field B',
+    crop: 'Carrots',
+    quantity: { amount: 1000, unit: 'kg' },
+    scheduleAt: '2026-05-02T08:00',
+    date: 'May 2',
+    notes: 'Inventory verification and field inspection',
+    icon: '🥕',
+    color: '#f1d1a5',
+    status: 'Scheduled'
   },
   {
     id: 2,
-    title: 'Drip Irrigation',
-    field: 'Rice Field A',
-    crop: 'Tomato',
-    quantity: { amount: 2000, unit: 'liters' },
-    scheduleAt: '2026-04-24T06:30',
-    date: 'Mar 3',
-    notes: 'Morning irrigation session',
+    title: 'Carrot Irrigation',
+    field: 'Rice Field B',
+    crop: 'Carrots',
+    quantity: { amount: 1000, unit: 'kg' },
+    scheduleAt: '2026-05-02T10:00',
+    date: 'May 2',
+    notes: 'Support growth with moisture management',
     icon: '💧',
-    color: '#dbead9',
+    color: '#f1d1a5',
     status: 'Scheduled'
   },
   {
     id: 3,
-    title: 'Fertilizer Application',
-    field: 'Corn Field B',
-    crop: 'Corn',
-    quantity: { amount: 50, unit: 'kg' },
-    scheduleAt: '2026-04-27T09:00',
-    date: 'Mar 2',
-    notes: 'Promoting healthy growth',
-    icon: '🌿',
-    color: '#eeeeee',
-    status: 'Scheduled'
+    title: 'Tomato Stock Review',
+    field: 'Rice Field A',
+    crop: 'Tomato',
+    quantity: { amount: 1000, unit: 'kg' },
+    scheduleAt: '2026-05-02T11:30',
+    date: 'May 2',
+    notes: 'Check low-stock threshold for harvest planning',
+    icon: '🍅',
+    color: '#f4c2ba',
+    status: 'Completed'
   }
 ];
 
@@ -99,6 +80,9 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [crops, setCrops] = useState(initialCrops);
   const [records, setRecords] = useState(initialRecords);
+  const [currentUserRole, setCurrentUserRole] = useState(() => {
+    return localStorage.getItem('agriTrack-role') || 'Farm Worker';
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('agriTrack-auth') === 'true';
   });
@@ -117,7 +101,7 @@ function App() {
     try {
       const { data, error } = await supabase
         .from('accounts')
-        .select('full_name, username, password, status')
+        .select('full_name, username, password, status, role')
         .eq('username', normalizedUsername)
         .single();
 
@@ -131,7 +115,9 @@ function App() {
 
       localStorage.setItem('agriTrack-auth', 'true');
       localStorage.setItem('agriTrack-user', data.full_name);
+      localStorage.setItem('agriTrack-role', data.role || 'Farm Worker');
       setCurrentUser(data.full_name);
+      setCurrentUserRole(data.role || 'Farm Worker');
       setIsAuthenticated(true);
       return true;
     } catch (err) {
@@ -142,9 +128,19 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('agriTrack-auth');
+    localStorage.removeItem('agriTrack-role');
     setIsAuthenticated(false);
     setActiveTab('dashboard');
   };
+
+  React.useEffect(() => {
+    if (currentUserRole !== 'Admin' && activeTab === 'accounts') {
+      setActiveTab('dashboard');
+    }
+    if (currentUserRole === 'Farm Worker' && activeTab === 'reports') {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, currentUserRole]);
 
   // Load initial data from Supabase
   React.useEffect(() => {
@@ -161,6 +157,10 @@ function App() {
             id: c.id,
             name: c.name,
             field: c.field,
+            variety: c.variety || '',
+            date_planted: c.date_planted || null,
+            area: c.area || '',
+            status: c.status || 'Growing',
             stock: { amount: Number(c.stock_amt) || 0, unit: c.stock_unit || '' },
             color: c.color || '#e8f5e9'
           })));
@@ -205,6 +205,10 @@ function App() {
           id: row.id,
           name: row.name,
           field: row.field,
+          variety: row.variety || '',
+          date_planted: row.date_planted || null,
+          area: row.area || '',
+          status: row.status || 'Growing',
           stock: { amount: Number(row.stock_amt) || 0, unit: row.stock_unit || '' },
           color: row.color || '#e8f5e9'
         }, ...prev]);
@@ -217,6 +221,10 @@ function App() {
                 ...crop,
                 name: row.name,
                 field: row.field,
+                variety: row.variety || crop.variety || '',
+                date_planted: row.date_planted || crop.date_planted || crop.datePlanted || null,
+                area: row.area || crop.area || '',
+                status: row.status || crop.status || 'Growing',
                 stock: { amount: Number(row.stock_amt) || 0, unit: row.stock_unit || '' },
                 color: row.color || crop.color
               }
@@ -295,6 +303,7 @@ function App() {
             setActiveTab={setActiveTab}
             onLogout={handleLogout}
             userName={currentUser}
+            userRole={currentUserRole}
           />
           <main className="main-content">
             {activeTab === 'dashboard' && <Dashboard crops={crops} records={records} />}
@@ -306,7 +315,9 @@ function App() {
                 setRecords={setRecords}
               />
             )}
-            {activeTab === 'reports' && <Reports crops={crops} records={records} />}
+            {activeTab === 'reports' && currentUserRole !== 'Farm Worker' && <Reports crops={crops} records={records} />}
+            {activeTab === 'inventory' && <Inventory crops={crops} />}
+            {activeTab === 'accounts' && currentUserRole === 'Admin' && <Accounts />}
             {activeTab === 'alerts' && <Alerts records={records} crops={crops} />}
           </main>
         </>
