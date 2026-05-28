@@ -6,9 +6,6 @@ import { supabase } from '../supabaseClient';
 function Dashboard({ crops = [], records = [] }) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [inputs, setInputs] = useState([]);
-  const [equipment, setEquipment] = useState([]);
-  const [harvests, setHarvests] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Helper function to determine if an input is low stock
   const isLowStock = (quantity) => {
@@ -19,19 +16,10 @@ function Dashboard({ crops = [], records = [] }) {
   useEffect(() => {
     const fetchInventoryData = async () => {
       try {
-        const [inputsRes, equipmentRes, harvestsRes] = await Promise.all([
-          supabase.from('inputs').select('*'),
-          supabase.from('equipment').select('*'),
-          supabase.from('harvests').select('*')
-        ]);
-
+        const inputsRes = await supabase.from('inputs').select('*');
         if (inputsRes.data) setInputs(inputsRes.data);
-        if (equipmentRes.data) setEquipment(equipmentRes.data);
-        if (harvestsRes.data) setHarvests(harvestsRes.data);
       } catch (error) {
         console.error('Error fetching inventory data:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -44,10 +32,6 @@ function Dashboard({ crops = [], records = [] }) {
   
   // Calculate low stock items from inputs
   const lowStockItems = inputs.filter((input) => isLowStock(input.quantity)).length;
-  
-  // Calculate total production from crops
-  const totalProduction = crops.reduce((sum, crop) => sum + (crop.stock?.amount || 0), 0);
-  const productionUnit = crops.length > 0 ? crops[0].stock?.unit || 'units' : 'units';
   
   // Calculate total inputs quantity across all inputs grouped by unit type
   const inputsByUnit = inputs.reduce((acc, input) => {
