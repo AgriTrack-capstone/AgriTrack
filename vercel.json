@@ -1,10 +1,6 @@
 {
   "buildCommand": "npx cross-env CI=false npm run build:prod",
   "outputDirectory": "build",
-  "env": {
-    "REACT_APP_SUPABASE_URL": "@react_app_supabase_url",
-    "REACT_APP_SUPABASE_ANON_KEY": "@react_app_supabase_anon_key"
-  },
   "rewrites": [
     {
       "source": "/(.*)",
