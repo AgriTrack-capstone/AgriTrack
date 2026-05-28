@@ -34,47 +34,7 @@ const initialCrops = [
   }
 ];
 
-const initialRecords = [
-  {
-    id: 1,
-    title: 'Carrot Field Check',
-    field: 'Rice Field B',
-    crop: 'Carrots',
-    quantity: { amount: 1000, unit: 'kg' },
-    scheduleAt: '2026-05-02T08:00',
-    date: 'May 2',
-    notes: 'Inventory verification and field inspection',
-    icon: '🥕',
-    color: '#f1d1a5',
-    status: 'Scheduled'
-  },
-  {
-    id: 2,
-    title: 'Carrot Irrigation',
-    field: 'Rice Field B',
-    crop: 'Carrots',
-    quantity: { amount: 1000, unit: 'kg' },
-    scheduleAt: '2026-05-02T10:00',
-    date: 'May 2',
-    notes: 'Support growth with moisture management',
-    icon: '💧',
-    color: '#f1d1a5',
-    status: 'Scheduled'
-  },
-  {
-    id: 3,
-    title: 'Tomato Stock Review',
-    field: 'Rice Field A',
-    crop: 'Tomato',
-    quantity: { amount: 1000, unit: 'kg' },
-    scheduleAt: '2026-05-02T11:30',
-    date: 'May 2',
-    notes: 'Check low-stock threshold for harvest planning',
-    icon: '🍅',
-    color: '#f4c2ba',
-    status: 'Completed'
-  }
-];
+const initialRecords = [];
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');

@@ -94,13 +94,39 @@ function Inventory({ crops = [] }) {
     };
   }, []);
 
+  // Helper function to determine if an input is low stock
+  const isLowStock = (quantity) => {
+    return Number(quantity || 0) <= 3;
+  };
+
+  // Helper function to get the status label for an input
+  const getInputStatus = (quantity) => {
+    return isLowStock(quantity) ? 'Low Stock' : 'In Stock';
+  };
+
   const stats = useMemo(() => {
     const totalItems = crops.length;
     const totalStockKg = crops.reduce((sum, crop) => sum + (Number(crop.stock?.amount) || 0), 0);
     const lowStockCount = crops.filter((crop) => (Number(crop.stock?.amount) || 0) < 500).length;
     const totalInputs = inputs.length;
+    // Count inputs with quantity <= 3 as low stock
+    const lowStockInputs = inputs.filter((input) => isLowStock(input.quantity)).length;
+    // Calculate total input stock quantity grouped by unit type
+    const inputsByUnit = inputs.reduce((acc, input) => {
+      const unit = input.unit || 'units';
+      const quantity = Number(input.quantity) || 0;
+      if (!acc[unit]) {
+        acc[unit] = 0;
+      }
+      acc[unit] += quantity;
+      return acc;
+    }, {});
+    // Format total inventory by unit
+    const totalInventoryByUnit = Object.entries(inputsByUnit).length > 0
+      ? Object.entries(inputsByUnit).map(([unit, qty]) => `${qty} ${unit}`).join(', ')
+      : '0 units';
 
-    return { totalItems, totalStockKg, lowStockCount, totalInputs };
+    return { totalItems, totalStockKg, lowStockCount, totalInputs, lowStockInputs, totalInventoryByUnit };
   }, [crops, inputs]);
 
   return (
@@ -127,12 +153,12 @@ function Inventory({ crops = [] }) {
                   <strong style={{ display: 'block', marginTop: 8, fontSize: 20 }}>{stats.totalItems}</strong>
                 </article>
                 <article className="crop-form-card">
-                  <span>Total Stock (kg)</span>
-                  <strong style={{ display: 'block', marginTop: 8, fontSize: 20 }}>{stats.totalStockKg.toLocaleString()}</strong>
+                  <span>Total Input Stock</span>
+                  <strong style={{ display: 'block', marginTop: 8, fontSize: 20 }}>{stats.totalInventoryByUnit.length > 30 ? stats.totalInventoryByUnit.substring(0, 30) + '...' : stats.totalInventoryByUnit}</strong>
                 </article>
                 <article className="crop-form-card">
                   <span>Low Stock Items</span>
-                  <strong style={{ display: 'block', marginTop: 8, fontSize: 20 }}>{stats.lowStockCount}</strong>
+                  <strong style={{ display: 'block', marginTop: 8, fontSize: 20, color: stats.lowStockInputs > 0 ? '#d84315' : '#2d7a3e' }}>{stats.lowStockInputs}</strong>
                 </article>
                 <article className="crop-form-card">
                   <span>Input Records</span>
@@ -202,15 +228,19 @@ function Inventory({ crops = [] }) {
                         ) : inputs.length === 0 ? (
                           <tr><td colSpan="5">No input records.</td></tr>
                         ) : (
-                          inputs.map((it) => (
-                            <tr key={`input-${it.id}`}>
-                              <td>{it.name}</td>
-                              <td>{it.type || '-'}</td>
-                              <td>{it.quantity || 0}</td>
-                              <td>{it.unit || '-'}</td>
-                              <td><span className={`status-badge`} style={{ background: it.status === 'In Stock' ? '#e8f5e9' : it.status === 'Low Stock' ? '#fff3e0' : '#f5f5f5', color: it.status === 'In Stock' ? '#2d7a3e' : it.status === 'Low Stock' ? '#d84315' : '#666' }}>{it.status}</span></td>
-                            </tr>
-                          ))
+                          inputs.map((it) => {
+                            const calculatedStatus = getInputStatus(it.quantity);
+                            const statusColor = isLowStock(it.quantity) ? { background: '#fff3e0', color: '#d84315' } : { background: '#e8f5e9', color: '#2d7a3e' };
+                            return (
+                              <tr key={`input-${it.id}`}>
+                                <td>{it.name}</td>
+                                <td>{it.type || '-'}</td>
+                                <td>{it.quantity || 0}</td>
+                                <td>{it.unit || '-'}</td>
+                                <td><span className="status-badge" style={statusColor}>{calculatedStatus}</span></td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
@@ -242,7 +272,7 @@ function Inventory({ crops = [] }) {
                               <td>{it.type || '-'}</td>
                               <td><span className="status-badge">{it.status}</span></td>
                               <td>{it.lastMaintenance || '-'}</td>
-                              <td>{it.cost != null ? it.cost : '-'}</td>
+                              <td>₱{it.cost != null ? it.cost : '0'}</td>
                             </tr>
                           ))
                         )}
@@ -276,7 +306,7 @@ function Inventory({ crops = [] }) {
                               <td>{it.quantity || 0}</td>
                               <td>{it.unit || '-'}</td>
                               <td>{it.date || '-'}</td>
-                              <td>{it.cost != null ? it.cost : '-'}</td>
+                              <td>₱{it.cost != null ? it.cost : '0'}</td>
                             </tr>
                           ))
                         )}

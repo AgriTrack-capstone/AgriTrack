@@ -308,7 +308,8 @@ body.sidebar-collapsed .farm-records-container {
 
 /* Table */
 .table-wrapper {
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 12px;
 }
 

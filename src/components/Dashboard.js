@@ -1,16 +1,69 @@
 import React, { useEffect, useState } from 'react';
 import '../styles/Dashboard.css';
+import { supabase } from '../supabaseClient';
 
 
 function Dashboard({ crops = [], records = [] }) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [inputs, setInputs] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [harvests, setHarvests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Helper function to determine if an input is low stock
+  const isLowStock = (quantity) => {
+    return Number(quantity || 0) <= 3;
+  };
+
+  // Fetch inventory data from Supabase
+  useEffect(() => {
+    const fetchInventoryData = async () => {
+      try {
+        const [inputsRes, equipmentRes, harvestsRes] = await Promise.all([
+          supabase.from('inputs').select('*'),
+          supabase.from('equipment').select('*'),
+          supabase.from('harvests').select('*')
+        ]);
+
+        if (inputsRes.data) setInputs(inputsRes.data);
+        if (equipmentRes.data) setEquipment(equipmentRes.data);
+        if (harvestsRes.data) setHarvests(harvestsRes.data);
+      } catch (error) {
+        console.error('Error fetching inventory data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInventoryData();
+  }, []);
 
   // Calculate dynamic values from crops and records
   const activeFields = new Set(crops.map((crop) => crop.field)).size;
   const totalCrops = crops.length;
-  const pendingAlerts = records.filter((record) => record.status !== 'Completed').length;
+  
+  // Calculate low stock items from inputs
+  const lowStockItems = inputs.filter((input) => isLowStock(input.quantity)).length;
+  
+  // Calculate total production from crops
   const totalProduction = crops.reduce((sum, crop) => sum + (crop.stock?.amount || 0), 0);
   const productionUnit = crops.length > 0 ? crops[0].stock?.unit || 'units' : 'units';
+  
+  // Calculate total inputs quantity across all inputs grouped by unit type
+  const inputsByUnit = inputs.reduce((acc, input) => {
+    const unit = input.unit || 'units';
+    const quantity = Number(input.quantity) || 0;
+    if (!acc[unit]) {
+      acc[unit] = 0;
+    }
+    acc[unit] += quantity;
+    return acc;
+  }, {});
+
+  // Format the total inventory display with unit breakdown
+  const totalInventoryDisplay = Object.entries(inputsByUnit).length > 0
+    ? Object.entries(inputsByUnit).map(([unit, qty]) => `${qty} ${unit}`).join(', ')
+    : '0 units';
 
   const statsData = [
     {
@@ -29,16 +82,16 @@ function Dashboard({ crops = [], records = [] }) {
     },
     {
       id: 3,
-      label: 'Pending Tasks',
-      value: pendingAlerts.toString(),
-      description: pendingAlerts === 0 ? 'All tasks completed' : `${pendingAlerts} task${pendingAlerts !== 1 ? 's' : ''} pending`,
-      borderColor: '#7b8f7c'
+      label: 'Low Stock Items',
+      value: lowStockItems.toString(),
+      description: lowStockItems === 0 ? 'All inputs sufficient' : `${lowStockItems} item${lowStockItems !== 1 ? 's' : ''} need restock`,
+      borderColor: lowStockItems > 0 ? '#d84315' : '#7b8f7c'
     },
     {
       id: 4,
       label: 'Total Inventory',
-      value: `${totalProduction} ${productionUnit}`,
-      description: 'Current stock levels',
+      value: totalInventoryDisplay.length > 30 ? totalInventoryDisplay.substring(0, 30) + '...' : totalInventoryDisplay,
+      description: 'Input stock by unit',
       borderColor: '#a5d6a7'
     }
   ];

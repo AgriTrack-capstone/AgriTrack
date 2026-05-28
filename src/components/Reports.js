@@ -336,29 +336,56 @@ function Reports({ records = [] }) {
     <div className="reports-time-container">
       <div className="reports-time-header">
         <div>
-          <h1>Reports</h1>
-          <p>Total added or used over time with table and graph views.</p>
+          <h1>📊 Reports</h1>
+          <p>Track inventory changes over time with detailed analytics.</p>
         </div>
       </div>
 
       <div className="reports-toolbar">
-        <div className="reports-range-tabs" aria-label="Select report range">
-          {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option.key}
-              className={`reports-range-tab ${rangeKey === option.key ? 'active' : ''}`}
-              onClick={() => setRangeKey(option.key)}
-              type="button"
-            >
-              <span className="reports-range-icon">{option.icon}</span>
-              <span className="reports-range-label">{option.label}</span>
-            </button>
-          ))}
+        <div className="reports-toolbar-left">
+          <div className="reports-range-tabs" aria-label="Select report range">
+            {RANGE_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                className={`reports-range-tab ${rangeKey === option.key ? 'active' : ''}`}
+                onClick={() => setRangeKey(option.key)}
+                type="button"
+                title={`Show ${option.label.toLowerCase()} report`}
+              >
+                <span className="reports-range-icon">{option.icon}</span>
+                <span className="reports-range-label">{option.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div>
-          <button className="reports-print-btn no-print" type="button" onClick={() => { setPrintRangeKey(rangeKey); setShowPrintCard(true); }}>
-            Export to PDF File
+        <div className="reports-toolbar-right">
+          <div className="reports-view-toggle">
+            <button
+              className={`reports-view-btn ${viewMode === 'table' ? 'active' : ''}`}
+              onClick={() => setViewMode('table')}
+              type="button"
+              title="Table view"
+            >
+              📋 Table
+            </button>
+            <button
+              className={`reports-view-btn ${viewMode === 'graph' ? 'active' : ''}`}
+              onClick={() => setViewMode('graph')}
+              type="button"
+              title="Graph view"
+            >
+              📈 Graph
+            </button>
+          </div>
+
+          <button 
+            className="reports-print-btn no-print" 
+            type="button" 
+            onClick={() => { setPrintRangeKey(rangeKey); setShowPrintCard(true); }}
+            title="Export report to PDF"
+          >
+            📄 Export PDF
           </button>
         </div>
       </div>
@@ -366,8 +393,8 @@ function Reports({ records = [] }) {
       {viewMode === 'graph' ? (
         <section className="reports-card">
           <div className="reports-card-header">
-            <h2>Added and used trend by {periodLabel.toLowerCase()}</h2>
-            <p>Green shows added quantity and dark green shows used quantity for each period.</p>
+            <h2>📈 Inventory Trend by {periodLabel.toLowerCase()}</h2>
+            <p>Green line shows added quantity, dark green line shows used quantity for each period.</p>
           </div>
           <div className="graph-shell">
             <div className="graph-legend">
@@ -384,8 +411,9 @@ function Reports({ records = [] }) {
           <div className="graph-metrics">
             {rows.map((row) => (
               <div key={row.key} className="graph-metric-pill">
-                <strong>{formatNumber(row.selected)}</strong>
+                <strong>{formatNumber(row.net)}</strong>
                 <span>{row.label}</span>
+                <small>Net: {row.net >= 0 ? '+' : ''}{formatNumber(row.net)}</small>
               </div>
             ))}
           </div>
@@ -393,8 +421,8 @@ function Reports({ records = [] }) {
       ) : (
         <section className="reports-card">
           <div className="reports-card-header">
-            <h2>Inventory totals by {periodLabel.toLowerCase()}</h2>
-            <p>Review the total quantity added and used for each period.</p>
+            <h2>📋 Inventory Summary by {periodLabel.toLowerCase()}</h2>
+            <p>Review total quantities added, used, and net change for each period.</p>
           </div>
           <div className="reports-table-wrap">
             <table className="reports-table">
@@ -403,20 +431,28 @@ function Reports({ records = [] }) {
                   <th>Period</th>
                   <th>Added</th>
                   <th>Used</th>
-                  <th>Net</th>
-                  <th>Records</th>
+                  <th>Net Change</th>
+                  <th>Transactions</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.key}>
-                    <td>{row.label}</td>
-                    <td>{formatNumber(row.added)}</td>
-                    <td>{formatNumber(row.used)}</td>
-                    <td className={row.net >= 0 ? 'positive' : 'negative'}>{formatNumber(row.net)}</td>
-                    <td>{row.totalEntries}</td>
+                {rows.length > 0 ? (
+                  rows.map((row) => (
+                    <tr key={row.key}>
+                      <td className="period-cell">{row.label}</td>
+                      <td className="added-cell">{formatNumber(row.added)}</td>
+                      <td className="used-cell">{formatNumber(row.used)}</td>
+                      <td className={row.net >= 0 ? 'positive' : 'negative'}>
+                        <strong>{row.net >= 0 ? '+' : ''}{formatNumber(row.net)}</strong>
+                      </td>
+                      <td className="transaction-cell">{row.totalEntries}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="empty-state">No inventory records found for this period</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -427,8 +463,8 @@ function Reports({ records = [] }) {
         <div className="reports-print-overlay no-print" onClick={() => setShowPrintCard(false)}>
           <div className="reports-print-card" onClick={(e) => e.stopPropagation()}>
             <div className="reports-card-header">
-              <h2>Export Report to PDF</h2>
-              <p>Select the period to download first, then print it from the PDF viewer.</p>
+              <h2>📄 Export Report to PDF</h2>
+              <p>Choose the reporting period and download a formatted PDF report.</p>
             </div>
             <div className="reports-range-tabs print-range-tabs">
               {RANGE_OPTIONS.map((option) => (
@@ -447,13 +483,15 @@ function Reports({ records = [] }) {
               <button type="button" className="btn btn-secondary" onClick={() => setShowPrintCard(false)}>
                 Cancel
               </button>
-              <button type="button" className="btn btn-primary" onClick={async () => {
-                setViewMode('table');
-                setRangeKey(printRangeKey);
-                setShowPrintCard(false);
-                await downloadPdfReport(records, printRangeKey);
-              }}>
-                Download PDF File
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                onClick={async () => {
+                  setShowPrintCard(false);
+                  await downloadPdfReport(records, printRangeKey);
+                }}
+              >
+                Download PDF
               </button>
             </div>
           </div>

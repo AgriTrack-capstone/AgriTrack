@@ -27,6 +27,16 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
   const [editHarvestId, setEditHarvestId] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
 
+  // Helper function to determine if an input is low stock
+  const isLowStock = (quantity) => {
+    return Number(quantity || 0) <= 3;
+  };
+
+  // Helper function to get the status label for an input
+  const getInputStatus = (quantity) => {
+    return isLowStock(quantity) ? 'Low Stock' : 'In Stock';
+  };
+
   // auto-clear toasts after a short delay
   useEffect(() => {
     if (!toast) return;
@@ -252,6 +262,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Are you sure you want to delete this crop?')) {
       (async () => {
         try {
+          const crop = crops.find((c) => c.id === cropId);
+          
+          // Create deletion transaction record
+          if (crop) {
+            await createTransactionRecord(
+              `Deleted crop: ${crop.name}`,
+              crop.area || 'General',
+              crop.name,
+              0,
+              'unit',
+              `Crop record deleted: ${crop.name}`,
+              'Deleted'
+            );
+          }
+          
           const { error } = await supabase
             .from('crops')
             .delete()
@@ -296,6 +321,32 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     }
   };
 
+  // ============ TRANSACTION RECORD HELPERS ============
+  // Create a transaction record for inventory tracking
+  const createTransactionRecord = async (title, field, crop, quantity, unit, notes, status = 'Completed') => {
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('records')
+        .insert([{
+          title,
+          field: field || 'General',
+          crop: crop || 'Various',
+          qty_amount: quantity,
+          qty_unit: unit || 'unit',
+          schedule_at: now,
+          notes,
+          status
+        }]);
+
+      if (error) {
+        console.error('Error creating transaction record:', error);
+      }
+    } catch (error) {
+      console.error('Error creating transaction record:', error);
+    }
+  };
+
   // ============ INPUT HANDLERS ============
   const handleInputChange = (event) => {
     const { name, value } = event.target;
@@ -329,6 +380,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, name: data.name, type: data.type, quantity: data.quantity, unit: data.unit, dateAdded: data.date_added, status: data.status }
                 : item
             )));
+            
+            // Create transaction record for updated input
+            await createTransactionRecord(
+              `Updated input: ${inputForm.name}`,
+              'General',
+              inputForm.type,
+              parseFloat(inputForm.quantity) || 0,
+              inputForm.unit,
+              `Input record updated: ${inputForm.name}`,
+              'Completed'
+            );
+            
             alert('Input record updated successfully!');
           } else if (error) {
             alert('Error updating input: ' + error.message);
@@ -355,6 +418,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             const created = Array.isArray(data) ? data[0] : data;
             if (created) {
               setInputs((prev) => [{ id: created.id, name: created.name, type: created.type, quantity: created.quantity, unit: created.unit, dateAdded: created.date_added, status: created.status }, ...prev]);
+              
+              // Create transaction record for reports
+              await createTransactionRecord(
+                `Added ${inputForm.name}`,
+                'General',
+                inputForm.type,
+                parseFloat(inputForm.quantity) || 0,
+                inputForm.unit,
+                `Input received: ${inputForm.name}`,
+                'Completed'
+              );
+              
               setToast('Input record saved successfully!');
             }
           }
@@ -386,6 +461,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this input record?')) {
       (async () => {
         try {
+          const input = inputs.find((i) => i.id === inputId);
+          
+          // Create deletion transaction record
+          if (input) {
+            await createTransactionRecord(
+              `Deleted input: ${input.name}`,
+              'General',
+              input.type,
+              input.quantity || 0,
+              input.unit,
+              `Input record deleted: ${input.name}`,
+              'Deleted'
+            );
+          }
+          
           const { error } = await supabase.from('inputs').delete().eq('id', inputId);
           if (error) throw error;
           setInputs((prev) => prev.filter((item) => item.id !== inputId));
@@ -430,6 +520,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, name: data.name, type: data.type, status: data.status, lastMaintenance: data.last_maintenance, cost: data.cost }
                 : item
             )));
+            
+            // Create transaction record for equipment maintenance
+            await createTransactionRecord(
+              `Equipment maintained: ${equipmentForm.name}`,
+              'General',
+              equipmentForm.type,
+              1,
+              'unit',
+              `Equipment update: ${equipmentForm.name} - Status: ${equipmentForm.status}`,
+              'Completed'
+            );
+            
             alert('Equipment record updated successfully!');
           } else if (error) {
             alert('Error updating equipment: ' + error.message);
@@ -449,6 +551,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setEquipment((prev) => [...prev, { id: data.id, name: data.name, type: data.type, status: data.status, lastMaintenance: data.last_maintenance, cost: data.cost }]);
+            
+            // Create transaction record for reports
+            await createTransactionRecord(
+              `Equipment recorded: ${equipmentForm.name}`,
+              'General',
+              equipmentForm.type,
+              1,
+              'unit',
+              `Equipment maintenance: ${equipmentForm.name} - ${equipmentForm.status}`,
+              'Completed'
+            );
+            
             alert('Equipment record saved successfully!');
           } else if (error) {
             alert('Error saving equipment: ' + error.message);
@@ -480,6 +594,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this equipment record?')) {
       (async () => {
         try {
+          const equipment_item = equipment.find((e) => e.id === equipmentId);
+          
+          // Create deletion transaction record
+          if (equipment_item) {
+            await createTransactionRecord(
+              `Deleted equipment: ${equipment_item.name}`,
+              'General',
+              equipment_item.type,
+              1,
+              'unit',
+              `Equipment record deleted: ${equipment_item.name} - Cost: ₱${equipment_item.cost || '0'}`,
+              'Deleted'
+            );
+          }
+          
           const { error } = await supabase.from('equipment').delete().eq('id', equipmentId);
           if (error) throw error;
           setEquipment((prev) => prev.filter((item) => item.id !== equipmentId));
@@ -524,6 +653,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, type: data.type, quantity: data.quantity, unit: data.unit, date: data.date, cost: data.cost }
                 : item
             )));
+            
+            // Create transaction record for fuel update
+            await createTransactionRecord(
+              `Fuel record updated: ${fuelForm.fuelType}`,
+              'General',
+              'Fuel',
+              parseFloat(fuelForm.quantity) || 0,
+              fuelForm.unit,
+              `Updated fuel usage: ${fuelForm.fuelType}`,
+              'Completed'
+            );
+            
             alert('Fuel record updated successfully!');
           } else if (error) {
             alert('Error updating fuel: ' + error.message);
@@ -543,6 +684,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setFuels((prev) => [...prev, { id: data.id, type: data.type, quantity: data.quantity, unit: data.unit, date: data.date, cost: data.cost }]);
+            
+            // Create transaction record for reports
+            await createTransactionRecord(
+              `Fuel consumed: ${fuelForm.fuelType}`,
+              'General',
+              'Fuel',
+              parseFloat(fuelForm.quantity) || 0,
+              fuelForm.unit,
+              `Fuel usage: ${fuelForm.fuelType} - ${fuelForm.cost ? `Cost: ₱${fuelForm.cost}` : ''}`,
+              'Completed'
+            );
+            
             alert('Fuel record saved successfully!');
           } else if (error) {
             alert('Error saving fuel: ' + error.message);
@@ -575,6 +728,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this fuel record?')) {
       (async () => {
         try {
+          const fuel = fuels.find((f) => f.id === fuelId);
+          
+          // Create deletion transaction record
+          if (fuel) {
+            await createTransactionRecord(
+              `Deleted fuel: ${fuel.type}`,
+              'General',
+              'Fuel',
+              fuel.quantity || 0,
+              fuel.unit,
+              `Fuel record deleted: ${fuel.type} - Cost: ₱${fuel.cost || '0'}`,
+              'Deleted'
+            );
+          }
+          
           const { error } = await supabase.from('fuels').delete().eq('id', fuelId);
           if (error) throw error;
           setFuels((prev) => prev.filter((item) => item.id !== fuelId));
@@ -619,6 +787,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, cropName: data.crop_name, quantity: data.quantity, unit: data.unit, dateHarvested: data.date_harvested, status: data.status }
                 : item
             )));
+            
+            // Create transaction record for harvest update
+            await createTransactionRecord(
+              `Updated harvest: ${harvestForm.cropName}`,
+              'General',
+              harvestForm.cropName,
+              parseFloat(harvestForm.quantity) || 0,
+              harvestForm.unit,
+              `Updated harvest record: ${harvestForm.cropName}`,
+              harvestForm.status
+            );
+            
             alert('Harvest record updated successfully!');
           } else if (error) {
             alert('Error updating harvest: ' + error.message);
@@ -638,6 +818,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setHarvests((prev) => [...prev, { id: data.id, cropName: data.crop_name, quantity: data.quantity, unit: data.unit, dateHarvested: data.date_harvested, status: data.status }]);
+            
+            // Create transaction record for reports (harvest is a "used" transaction)
+            await createTransactionRecord(
+              `Harvested ${harvestForm.cropName}`,
+              'General',
+              harvestForm.cropName,
+              parseFloat(harvestForm.quantity) || 0,
+              harvestForm.unit,
+              `Harvest completed: ${harvestForm.cropName} - Status: ${harvestForm.status}`,
+              harvestForm.status
+            );
+            
             alert('Harvest record saved successfully!');
           } else if (error) {
             alert('Error saving harvest: ' + error.message);
@@ -669,6 +861,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this harvest record?')) {
       (async () => {
         try {
+          const harvest = harvests.find((h) => h.id === harvestId);
+          
+          // Create deletion transaction record
+          if (harvest) {
+            await createTransactionRecord(
+              `Deleted harvest: ${harvest.cropName}`,
+              'General',
+              harvest.cropName,
+              harvest.quantity || 0,
+              harvest.unit,
+              `Harvest record deleted: ${harvest.cropName} - Status: ${harvest.status}`,
+              'Deleted'
+            );
+          }
+          
           const { error } = await supabase.from('harvests').delete().eq('id', harvestId);
           if (error) throw error;
           setHarvests((prev) => prev.filter((item) => item.id !== harvestId));
@@ -1029,27 +1236,31 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                     </tr>
                   </thead>
                   <tbody>
-                    {inputs.filter(item => !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
-                      <tr key={item.id}>
-                        <td className="crop-name">{item.name}</td>
-                        <td>{item.type || '-'}</td>
-                        <td>{item.quantity}</td>
-                        <td>{item.unit}</td>
-                        <td>{item.dateAdded ? new Date(item.dateAdded).toLocaleDateString() : '-'}</td>
-                        <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
-                        <td className="actions-cell">
-                          <div className="action-menu">
-                            <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
-                            {menuOpenId === item.id && (
-                              <div className="dropdown-menu">
-                                <button onClick={() => { setMenuOpenId(null); handleEditInput(item); }}>Edit</button>
-                                <button onClick={() => { setMenuOpenId(null); handleDeleteInput(item.id); }} className="danger">Delete</button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {inputs.filter(item => !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => {
+                      const calculatedStatus = getInputStatus(item.quantity);
+                      const statusColor = isLowStock(item.quantity) ? '#ff9800' : '#4caf50';
+                      return (
+                        <tr key={item.id}>
+                          <td className="crop-name">{item.name}</td>
+                          <td>{item.type || '-'}</td>
+                          <td>{item.quantity}</td>
+                          <td>{item.unit}</td>
+                          <td>{item.dateAdded ? new Date(item.dateAdded).toLocaleDateString() : '-'}</td>
+                          <td><span className="status-badge" style={{ backgroundColor: statusColor, color: 'white' }}>{calculatedStatus}</span></td>
+                          <td className="actions-cell">
+                            <div className="action-menu">
+                              <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
+                              {menuOpenId === item.id && (
+                                <div className="dropdown-menu">
+                                  <button onClick={() => { setMenuOpenId(null); handleEditInput(item); }}>Edit</button>
+                                  <button onClick={() => { setMenuOpenId(null); handleDeleteInput(item.id); }} className="danger">Delete</button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1119,7 +1330,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         <td>{item.type || '-'}</td>
                         <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
                         <td>{item.lastMaintenance ? new Date(item.lastMaintenance).toLocaleDateString() : '-'}</td>
-                        <td>${item.cost || '0'}</td>
+                        <td>₱{item.cost || '0'}</td>
                         <td className="actions-cell">
                           <div className="action-menu">
                             <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
@@ -1202,7 +1413,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         <td>{item.quantity}</td>
                         <td>{item.unit}</td>
                         <td>{item.date ? new Date(item.date).toLocaleDateString() : '-'}</td>
-                        <td>${item.cost || '0'}</td>
+                        <td>₱{item.cost || '0'}</td>
                         <td className="actions-cell">
                           <div className="action-menu">
                             <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
