@@ -1457,7 +1457,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
                   <form onSubmit={handleSaveHarvest}>
                     <div className="form-row">
-                      <div className="form-group"><label>Crop Name *</label><input type="text" name="cropName" value={harvestForm.cropName} onChange={handleHarvestChange} placeholder="e.g., Rice, Corn" required /></div>
+                      <div className="form-group"><label>Crop Name *</label><select name="cropName" value={harvestForm.cropName} onChange={handleHarvestChange} required><option value="">Select a crop</option>{crops.map((crop) => (<option key={crop.id} value={crop.name}>{crop.name}</option>))}</select></div>
                       <div className="form-group"><label>Quantity *</label><input type="number" name="quantity" value={harvestForm.quantity} onChange={handleHarvestChange} placeholder="Enter quantity" required /></div>
                     </div>
 
