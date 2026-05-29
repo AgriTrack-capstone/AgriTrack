@@ -118,34 +118,7 @@ function buildRows(records, rangeKey) {
   });
 }
 
-function DualLineChart({ added = [], used = [] }) {
-  const width = 320;
-  const height = 130;
-  const allValues = [...added, ...used, 1];
-  const max = Math.max(...allValues);
-  const min = Math.min(...allValues, 0);
-  const step = added.length > 1 ? width / (added.length - 1) : width;
 
-  const buildPoints = (series) => series
-    .map((value, index) => {
-      const x = index * step;
-      const ratio = max === min ? 0.5 : (value - min) / (max - min);
-      const y = height - 18 - (ratio * (height - 36));
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  const addedPoints = buildPoints(added);
-  const usedPoints = buildPoints(used);
-
-  return (
-    <svg className="report-line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      <line x1="0" y1={height - 16} x2={width} y2={height - 16} className="chart-baseline" />
-      <polyline points={addedPoints} fill="none" className="chart-line chart-line-added" strokeLinecap="round" strokeLinejoin="round" />
-      <polyline points={usedPoints} fill="none" className="chart-line chart-line-used" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 const REPORT_HEADER_SVG = `
 <svg viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
@@ -322,15 +295,12 @@ async function downloadPdfReport(records, rangeKey) {
 
 function Reports({ records = [] }) {
   const [rangeKey, setRangeKey] = useState('month');
-  const [viewMode, setViewMode] = useState('table');
   const [showPrintCard, setShowPrintCard] = useState(false);
   const [printRangeKey, setPrintRangeKey] = useState(rangeKey);
 
   const rows = useMemo(() => buildRows(records, rangeKey), [records, rangeKey]);
 
   const periodLabel = getRangeLabel(rangeKey);
-  const addedValues = rows.map((row) => row.added);
-  const usedValues = rows.map((row) => row.used);
 
   return (
     <div className="reports-time-container">
@@ -360,25 +330,6 @@ function Reports({ records = [] }) {
         </div>
 
         <div className="reports-toolbar-right">
-          <div className="reports-view-toggle">
-            <button
-              className={`reports-view-btn ${viewMode === 'table' ? 'active' : ''}`}
-              onClick={() => setViewMode('table')}
-              type="button"
-              title="Table view"
-            >
-              📋 Table
-            </button>
-            <button
-              className={`reports-view-btn ${viewMode === 'graph' ? 'active' : ''}`}
-              onClick={() => setViewMode('graph')}
-              type="button"
-              title="Graph view"
-            >
-              📈 Graph
-            </button>
-          </div>
-
           <button 
             className="reports-print-btn no-print" 
             type="button" 
@@ -390,74 +341,44 @@ function Reports({ records = [] }) {
         </div>
       </div>
 
-      {viewMode === 'graph' ? (
-        <section className="reports-card">
-          <div className="reports-card-header">
-            <h2>📈 Inventory Trend by {periodLabel.toLowerCase()}</h2>
-            <p>Green line shows added quantity, dark green line shows used quantity for each period.</p>
-          </div>
-          <div className="graph-shell">
-            <div className="graph-legend">
-              <span><i className="legend-swatch added" /> Added</span>
-              <span><i className="legend-swatch used" /> Used</span>
-            </div>
-            <DualLineChart added={addedValues} used={usedValues} />
-            <div className="graph-axis">
-              {rows.map((row) => (
-                <span key={row.key}>{row.label}</span>
-              ))}
-            </div>
-          </div>
-          <div className="graph-metrics">
-            {rows.map((row) => (
-              <div key={row.key} className="graph-metric-pill">
-                <strong>{formatNumber(row.net)}</strong>
-                <span>{row.label}</span>
-                <small>Net: {row.net >= 0 ? '+' : ''}{formatNumber(row.net)}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : (
-        <section className="reports-card">
-          <div className="reports-card-header">
-            <h2>📋 Inventory Summary by {periodLabel.toLowerCase()}</h2>
-            <p>Review total quantities added, used, and net change for each period.</p>
-          </div>
-          <div className="reports-table-wrap">
-            <table className="reports-table">
-              <thead>
-                <tr>
-                  <th>Period</th>
-                  <th>Added</th>
-                  <th>Used</th>
-                  <th>Net Change</th>
-                  <th>Transactions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length > 0 ? (
-                  rows.map((row) => (
-                    <tr key={row.key}>
-                      <td className="period-cell">{row.label}</td>
-                      <td className="added-cell">{formatNumber(row.added)}</td>
-                      <td className="used-cell">{formatNumber(row.used)}</td>
-                      <td className={row.net >= 0 ? 'positive' : 'negative'}>
-                        <strong>{row.net >= 0 ? '+' : ''}{formatNumber(row.net)}</strong>
-                      </td>
-                      <td className="transaction-cell">{row.totalEntries}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="5" className="empty-state">No inventory records found for this period</td>
+      <section className="reports-card">
+        <div className="reports-card-header">
+          <h2>📋 Inventory Summary by {periodLabel.toLowerCase()}</h2>
+          <p>Review total quantities added, used, and net change for each period.</p>
+        </div>
+        <div className="reports-table-wrap">
+          <table className="reports-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Added</th>
+                <th>Used</th>
+                <th>Net Change</th>
+                <th>Transactions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length > 0 ? (
+                rows.map((row) => (
+                  <tr key={row.key}>
+                    <td className="period-cell">{row.label}</td>
+                    <td className="added-cell">{formatNumber(row.added)}</td>
+                    <td className="used-cell">{formatNumber(row.used)}</td>
+                    <td className={row.net >= 0 ? 'positive' : 'negative'}>
+                      <strong>{row.net >= 0 ? '+' : ''}{formatNumber(row.net)}</strong>
+                    </td>
+                    <td className="transaction-cell">{row.totalEntries}</td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="empty-state">No inventory records found for this period</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {showPrintCard && (
         <div className="reports-print-overlay no-print" onClick={() => setShowPrintCard(false)}>
