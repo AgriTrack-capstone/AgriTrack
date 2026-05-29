@@ -306,7 +306,7 @@ function Reports({ records = [] }) {
     <div className="reports-time-container">
       <div className="reports-time-header">
         <div>
-          <h1>📊 Reports</h1>
+          <h1>Reports</h1>
           <p>Track inventory changes over time with detailed analytics.</p>
         </div>
       </div>
@@ -336,14 +336,14 @@ function Reports({ records = [] }) {
             onClick={() => { setPrintRangeKey(rangeKey); setShowPrintCard(true); }}
             title="Export report to PDF"
           >
-            📄 Export PDF
+            Export PDF
           </button>
         </div>
       </div>
 
       <section className="reports-card">
         <div className="reports-card-header">
-          <h2>📋 Inventory Summary by {periodLabel.toLowerCase()}</h2>
+          <h2>Inventory Summary by {periodLabel.toLowerCase()}</h2>
           <p>Review total quantities added, used, and net change for each period.</p>
         </div>
         <div className="reports-table-wrap">
@@ -384,7 +384,7 @@ function Reports({ records = [] }) {
         <div className="reports-print-overlay no-print" onClick={() => setShowPrintCard(false)}>
           <div className="reports-print-card" onClick={(e) => e.stopPropagation()}>
             <div className="reports-card-header">
-              <h2>📄 Export Report to PDF</h2>
+              <h2>Export Report to PDF</h2>
               <p>Choose the reporting period and download a formatted PDF report.</p>
             </div>
             <div className="reports-range-tabs print-range-tabs">
