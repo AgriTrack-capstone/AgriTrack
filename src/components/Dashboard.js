@@ -80,8 +80,8 @@ function Dashboard({ crops = [], records = [] }) {
     }
   ];
 
-  // Generate crop records carousel from records with fallback to sample data
-  const generateCropRecords = () => {
+  // Generate crop records highlights with crop-specific images
+  const generateCropRecordsHighlights = () => {
     const cropImages = {
       'Rice': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
       'Corn': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
@@ -89,43 +89,46 @@ function Dashboard({ crops = [], records = [] }) {
       'Cabbage': 'https://images.unsplash.com/photo-1464184169885-abc23fd7d0ad?auto=format&fit=crop&w=1200&q=80',
       'Carrot': 'https://images.unsplash.com/photo-1462332420958-a05d1e7413413?auto=format&fit=crop&w=1200&q=80',
       'Lettuce': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80',
-      'Pepper': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80'
+      'Pepper': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80',
+      'Potato': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80',
+      'Eggplant': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80'
     };
-    
+
     if (records.length > 0) {
-      // Get unique crop records sorted by date (most recent first)
-      const uniqueRecords = [];
+      // Get unique crop records from farm records
+      const uniqueCrops = [];
       const seenCrops = new Set();
-      
+
       records.forEach(record => {
         const cropName = record.crop || 'Crop';
-        if (!seenCrops.has(cropName)) {
+        if (!seenCrops.has(cropName) && record.qty_amount) {
           seenCrops.add(cropName);
-          uniqueRecords.push({
+          uniqueCrops.push({
             name: cropName,
-            quantity: record.qty_amount || record.quantity?.amount || record.amount || 0,
+            quantity: record.qty_amount || record.quantity?.amount || 0,
             unit: record.unit || 'kg',
             field: record.field || 'Farm',
-            date: record.date || record.created_at || new Date().toLocaleDateString(),
-            notes: record.notes || 'Crop record added',
-            image: cropImages[cropName] || cropImages['Rice'],
-            color: '#2e7d32'
+            date: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Today',
+            image: cropImages[cropName] || cropImages['Rice']
           });
         }
       });
-      
-      return uniqueRecords.slice(0, 5);
+
+      return uniqueCrops.length > 0 ? uniqueCrops : [
+        { name: 'Rice', quantity: 250, unit: 'kg', field: 'General Farm', date: 'May 29', image: cropImages['Rice'] },
+        { name: 'Corn', quantity: 180, unit: 'kg', field: 'North Plot', date: 'May 28', image: cropImages['Corn'] },
+        { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot', date: 'May 27', image: cropImages['Tomato'] }
+      ];
     }
-    
-    // Fallback to sample crop records
+
     return [
-      { name: 'Rice', quantity: 250, unit: 'kg', field: 'Rice Field A', date: 'March 9', notes: 'Newly planted crop', image: cropImages['Rice'], color: '#2e7d32' },
-      { name: 'Corn', quantity: 180, unit: 'kg', field: 'Corn Field B', date: 'March 8', notes: 'Growth stage monitoring', image: cropImages['Corn'], color: '#2e7d32' },
-      { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot C', date: 'March 7', notes: 'Fruit maturation phase', image: cropImages['Tomato'], color: '#2e7d32' }
+      { name: 'Rice', quantity: 250, unit: 'kg', field: 'General Farm', date: 'May 29', image: cropImages['Rice'] },
+      { name: 'Corn', quantity: 180, unit: 'kg', field: 'North Plot', date: 'May 28', image: cropImages['Corn'] },
+      { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot', date: 'May 27', image: cropImages['Tomato'] }
     ];
   };
-  
-  const cropRecordsData = generateCropRecords();
+
+  const cropRecordsData = generateCropRecordsHighlights();
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -182,9 +185,9 @@ function Dashboard({ crops = [], records = [] }) {
 
       {/* Main Content Grid */}
       <div className="main-grid">
-        {/* Crop Records Carousel Card */}
+        {/* Crop Records Highlights Carousel Card */}
         <div className="weather-card farmer-carousel-card">
-          <h3>Crop Records Added</h3>
+          <h3>Crop Records Highlights</h3>
           <div className="farmer-carousel">
             <div className="carousel-image-wrapper">
               <img
@@ -193,7 +196,7 @@ function Dashboard({ crops = [], records = [] }) {
                 className="carousel-image"
               />
               <div className="carousel-overlay">
-                <h4>🌾 {cropRecordsData[currentSlideIndex].name}</h4>
+                <h4>{cropRecordsData[currentSlideIndex].name}</h4>
                 <p>{cropRecordsData[currentSlideIndex].field} • {cropRecordsData[currentSlideIndex].date}</p>
                 <span className="carousel-activity-count">{cropRecordsData[currentSlideIndex].quantity} {cropRecordsData[currentSlideIndex].unit}</span>
               </div>
@@ -217,6 +220,24 @@ function Dashboard({ crops = [], records = [] }) {
                 ›
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Crop Status Overview */}
+        <div className="crop-status-card">
+          <h3>Crop Status Overview</h3>
+          <div className="crop-status-list">
+            {cropStatusData.map((crop, index) => (
+              <div key={index} className="crop-status-item">
+                <div className="crop-info">
+                  <span className="crop-name">{crop.name}</span>
+                  <span className="crop-percentage">{crop.percentage}%</span>
+                </div>
+                <div className="progress-bar-container">
+                  <div className="progress-bar" style={{ width: `${crop.percentage}%`, backgroundColor: crop.color }}></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
