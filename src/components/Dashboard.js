@@ -80,67 +80,69 @@ function Dashboard({ crops = [], records = [] }) {
     }
   ];
 
-  // Generate recent activities from records with fallback to sample data
-  const generateRecentActivities = () => {
-    const activityIcons = { 'Irrigation': '💧', 'Fertilizing': '🌱', 'Pest Control': '🐛', 'Harvesting': '🌾', 'Planting': '🌿' };
-    const activityImages = {
-      'Irrigation': 'https://images.unsplash.com/photo-1523348837708-15d4a09cfac2?auto=format&fit=crop&w=1200&q=80',
-      'Fertilizing': 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
-      'Pest Control': 'https://images.unsplash.com/photo-1471193945509-9ad0617afabf?auto=format&fit=crop&w=1200&q=80',
-      'Harvesting': 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80',
-      'Planting': 'https://images.unsplash.com/photo-1625246333333-e28e67ddf97d?auto=format&fit=crop&w=1200&q=80'
+  // Generate crop records carousel from records with fallback to sample data
+  const generateCropRecords = () => {
+    const cropImages = {
+      'Rice': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
+      'Corn': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
+      'Tomato': 'https://images.unsplash.com/photo-1464454709131-ffd692591ee5?auto=format&fit=crop&w=1200&q=80',
+      'Cabbage': 'https://images.unsplash.com/photo-1464184169885-abc23fd7d0ad?auto=format&fit=crop&w=1200&q=80',
+      'Carrot': 'https://images.unsplash.com/photo-1462332420958-a05d1e7413413?auto=format&fit=crop&w=1200&q=80',
+      'Lettuce': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80',
+      'Pepper': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80'
     };
-    const activityColors = { 'Irrigation': '#1b5e20', 'Fertilizing': '#2e7d32', 'Pest Control': '#7b8f7c', 'Harvesting': '#a5d6a7', 'Planting': '#558b2f' };
     
     if (records.length > 0) {
-      // Group records by crop and get recent ones
-      const grouped = {};
-      records.slice(0, 10).forEach(record => {
-        const key = record.crop || 'Activity';
-        if (!grouped[key]) {
-          grouped[key] = { ...record, count: 0 };
+      // Get unique crop records sorted by date (most recent first)
+      const uniqueRecords = [];
+      const seenCrops = new Set();
+      
+      records.forEach(record => {
+        const cropName = record.crop || 'Crop';
+        if (!seenCrops.has(cropName)) {
+          seenCrops.add(cropName);
+          uniqueRecords.push({
+            name: cropName,
+            quantity: record.qty_amount || record.quantity?.amount || record.amount || 0,
+            unit: record.unit || 'kg',
+            field: record.field || 'Farm',
+            date: record.date || record.created_at || new Date().toLocaleDateString(),
+            notes: record.notes || 'Crop record added',
+            image: cropImages[cropName] || cropImages['Rice'],
+            color: '#2e7d32'
+          });
         }
-        grouped[key].count += 1;
       });
       
-      return Object.values(grouped).slice(0, 4).map((activity, idx) => ({
-        type: activity.crop || 'Farm Activity',
-        count: activity.count,
-        date: activity.date || 'Today',
-        icon: activityIcons[activity.crop] || '📋',
-        color: activityColors[activity.crop] || '#7b8f7c',
-        field: activity.field || 'Farm',
-        image: activityImages[activity.crop] || activityImages['Harvesting']
-      }));
+      return uniqueRecords.slice(0, 5);
     }
     
-    // Fallback to default activities
+    // Fallback to sample crop records
     return [
-      { type: 'Irrigation', count: 12, date: 'March 9', icon: '💧', color: '#1b5e20', field: 'Rice Field A', image: activityImages['Irrigation'] },
-      { type: 'Fertilizing', count: 5, date: 'March 8', icon: '🌱', color: '#2e7d32', field: 'Vegetable Plot C', image: activityImages['Fertilizing'] },
-      { type: 'Pest Control', count: 3, date: 'March 7', icon: '🐛', color: '#7b8f7c', field: 'Corn Field B', image: activityImages['Pest Control'] },
-      { type: 'Harvesting', count: 2, date: 'March 6', icon: '🌾', color: '#a5d6a7', field: 'North Plot', image: activityImages['Harvesting'] }
+      { name: 'Rice', quantity: 250, unit: 'kg', field: 'Rice Field A', date: 'March 9', notes: 'Newly planted crop', image: cropImages['Rice'], color: '#2e7d32' },
+      { name: 'Corn', quantity: 180, unit: 'kg', field: 'Corn Field B', date: 'March 8', notes: 'Growth stage monitoring', image: cropImages['Corn'], color: '#2e7d32' },
+      { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot C', date: 'March 7', notes: 'Fruit maturation phase', image: cropImages['Tomato'], color: '#2e7d32' }
     ];
   };
   
-  const recentActivitiesData = generateRecentActivities();
+  const cropRecordsData = generateCropRecords();
 
   useEffect(() => {
     const intervalId = setInterval(() => {
-      setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % recentActivitiesData.length);
+      setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % cropRecordsData.length);
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [recentActivitiesData.length]);
+  }, [cropRecordsData.length]);
 
   const goToPrevSlide = () => {
     setCurrentSlideIndex((prevIndex) =>
-      prevIndex === 0 ? recentActivitiesData.length - 1 : prevIndex - 1
+      prevIndex === 0 ? cropRecordsData.length - 1 : prevIndex - 1
     );
   };
 
   const goToNextSlide = () => {
-    setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % recentActivitiesData.length);
+    setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % cropRecordsData.length);
   };
 
   // Generate crop status data from crops array with health percentages based on stock
@@ -180,38 +182,38 @@ function Dashboard({ crops = [], records = [] }) {
 
       {/* Main Content Grid */}
       <div className="main-grid">
-        {/* Farmer Carousel Card */}
+        {/* Crop Records Carousel Card */}
         <div className="weather-card farmer-carousel-card">
-          <h3>Recent Activity Highlights</h3>
+          <h3>Crop Records Added</h3>
           <div className="farmer-carousel">
             <div className="carousel-image-wrapper">
               <img
-                src={recentActivitiesData[currentSlideIndex].image}
-                alt={recentActivitiesData[currentSlideIndex].type}
+                src={cropRecordsData[currentSlideIndex].image}
+                alt={cropRecordsData[currentSlideIndex].name}
                 className="carousel-image"
               />
               <div className="carousel-overlay">
-                <h4>{recentActivitiesData[currentSlideIndex].icon} {recentActivitiesData[currentSlideIndex].type}</h4>
-                <p>{recentActivitiesData[currentSlideIndex].field} • {recentActivitiesData[currentSlideIndex].date}</p>
-                <span className="carousel-activity-count">{recentActivitiesData[currentSlideIndex].count} times recorded</span>
+                <h4>🌾 {cropRecordsData[currentSlideIndex].name}</h4>
+                <p>{cropRecordsData[currentSlideIndex].field} • {cropRecordsData[currentSlideIndex].date}</p>
+                <span className="carousel-activity-count">{cropRecordsData[currentSlideIndex].quantity} {cropRecordsData[currentSlideIndex].unit}</span>
               </div>
             </div>
 
             <div className="carousel-controls">
-              <button className="carousel-btn" onClick={goToPrevSlide} aria-label="Previous activity">
+              <button className="carousel-btn" onClick={goToPrevSlide} aria-label="Previous crop">
                 ‹
               </button>
               <div className="carousel-dots">
-                {recentActivitiesData.map((slide, index) => (
+                {cropRecordsData.map((slide, index) => (
                   <button
-                    key={slide.type}
+                    key={slide.name + index}
                     className={`carousel-dot ${currentSlideIndex === index ? 'active' : ''}`}
                     onClick={() => setCurrentSlideIndex(index)}
-                    aria-label={`Go to ${slide.type}`}
+                    aria-label={`Go to ${slide.name}`}
                   />
                 ))}
               </div>
-              <button className="carousel-btn" onClick={goToNextSlide} aria-label="Next activity">
+              <button className="carousel-btn" onClick={goToNextSlide} aria-label="Next crop">
                 ›
               </button>
             </div>
