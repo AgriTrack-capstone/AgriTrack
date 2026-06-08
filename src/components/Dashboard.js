@@ -84,14 +84,23 @@ function Dashboard({ crops = [], records = [] }) {
   const generateCropRecordsHighlights = () => {
     const cropImages = {
       'Rice': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
-      'Corn': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
+      'rice': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=1200&q=80',
+      'Corn': 'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=1200&q=80',
       'Tomato': 'https://images.unsplash.com/photo-1464454709131-ffd692591ee5?auto=format&fit=crop&w=1200&q=80',
       'Cabbage': 'https://images.unsplash.com/photo-1464184169885-abc23fd7d0ad?auto=format&fit=crop&w=1200&q=80',
-      'Carrot': 'https://images.unsplash.com/photo-1462332420958-a05d1e7413413?auto=format&fit=crop&w=1200&q=80',
+      'Carrot': 'https://images.unsplash.com/photo-1447078519245-c2400ca199e7?auto=format&fit=crop&w=1200&q=80',
       'Lettuce': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80',
       'Pepper': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80',
-      'Potato': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80',
-      'Eggplant': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80'
+      'Potato': 'https://images.unsplash.com/photo-1452227267090-e191edd3f16e?auto=format&fit=crop&w=1200&q=80',
+      'Sweet Potato': 'https://images.unsplash.com/photo-1596097635608-e74b66208cea?auto=format&fit=crop&w=1200&q=80',
+      'Eggplant': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80',
+      'Singkamas': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80',
+      'Spinach': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80',
+      'Radish': 'https://images.unsplash.com/photo-1447078519245-c2400ca199e7?auto=format&fit=crop&w=1200&q=80',
+      'Bean': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80',
+      'Squash': 'https://images.unsplash.com/photo-1464454709131-ffd692591ee5?auto=format&fit=crop&w=1200&q=80',
+      'Okra': 'https://images.unsplash.com/photo-1464454709131-ffd692591ee5?auto=format&fit=crop&w=1200&q=80',
+      'Pumpkin': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?auto=format&fit=crop&w=1200&q=80'
     };
 
     if (records.length > 0) {
