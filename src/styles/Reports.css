@@ -500,23 +500,28 @@ body.sidebar-collapsed .reports-time-container {
   background: #fff;
   border-radius: 12px;
   border: 1px solid #e8ece8;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 24px;
   margin-bottom: 16px;
 }
 
 .reports-card-header {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f5f0;
 }
 
 .reports-card-header h2 {
-  margin: 0 0 6px;
-  color: #203120;
+  margin: 0 0 4px;
+  color: #1a1a1a;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .reports-card-header p {
   margin: 0;
   color: #6a726a;
+  font-size: 13px;
 }
 
 .reports-table-wrap {
@@ -529,48 +534,53 @@ body.sidebar-collapsed .reports-time-container {
 }
 
 .reports-table thead {
-  background: #f5f7f5;
+  background: linear-gradient(135deg, #2d7a3e 0%, #1e5a2a 100%);
 }
 
 .reports-table th {
-  font-weight: 600;
-  color: #2d7a3e;
+  font-weight: 700;
+  color: white;
   text-align: center;
+  padding: 16px 12px;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
 }
 
 .reports-table th:first-child {
   text-align: left;
+  text-transform: none;
 }
 
 .reports-table td {
-  padding: 14px 12px;
+  padding: 16px 12px;
   border-bottom: 1px solid #edf0ed;
   text-align: center;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .reports-table td.period-cell {
   text-align: left;
-  font-weight: 500;
-  color: #203120;
+  font-weight: 600;
+  color: #1a1a1a;
+  width: 30%;
 }
 
 .reports-table td.added-cell {
   color: #2d7a3e;
-  font-weight: 600;
+  font-weight: 700;
+  width: 35%;
 }
 
 .reports-table td.used-cell {
-  color: #184d27;
-  font-weight: 600;
-}
-
-.reports-table td.transaction-cell {
-  color: #6a726a;
+  color: #d1492f;
+  font-weight: 700;
+  width: 35%;
 }
 
 .reports-table tbody tr:hover {
-  background: #fafcf9;
+  background: #f0f5f0;
+  transition: background-color 0.2s ease;
 }
 
 .reports-table td.positive {
@@ -586,8 +596,9 @@ body.sidebar-collapsed .reports-time-container {
 .reports-table td.empty-state {
   text-align: center;
   color: #999;
-  padding: 40px 12px;
+  padding: 50px 12px;
   font-style: italic;
+  font-size: 15px;
 }
 
 

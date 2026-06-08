@@ -187,8 +187,8 @@ async function downloadPdfReport(records, rangeKey) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const tableWidth = pageWidth - (marginX * 2);
-  const columnWidths = [tableWidth * 0.36, tableWidth * 0.16, tableWidth * 0.16, tableWidth * 0.16, tableWidth * 0.16];
-  const headers = ['Period', 'Added', 'Used', 'Net', 'Records'];
+  const columnWidths = [tableWidth * 0.5, tableWidth * 0.25, tableWidth * 0.25];
+  const headers = ['Period', 'Added', 'Used'];
   const lineColor = [60, 110, 60];
   const headerGreen = [35, 88, 48];
   const textGreen = [52, 96, 56];
@@ -241,20 +241,12 @@ async function downloadPdfReport(records, rangeKey) {
     currentX += columnWidths[0];
 
     doc.setFillColor(...headerGreen);
-    doc.rect(currentX, currentY, columnWidths.slice(1).reduce((sum, width) => sum + width, 0), rowHeight, 'FD');
+    doc.rect(currentX, currentY, columnWidths[1] + columnWidths[2], rowHeight, 'FD');
     doc.setTextColor(255, 255, 255);
-    const greenHeaderLabelsX = [
-      currentX + 2,
-      currentX + columnWidths[1] + 2,
-      currentX + columnWidths[1] + columnWidths[2] + 2,
-      currentX + columnWidths[1] + columnWidths[2] + columnWidths[3] + 2
-    ];
+    doc.text(headers[1], currentX + 2, currentY + 6.5);
+    doc.text(headers[2], currentX + columnWidths[1] + 2, currentY + 6.5);
 
-    headers.slice(1).forEach((header, index) => {
-      doc.text(header, greenHeaderLabelsX[index], currentY + 6.5);
-    });
-
-    currentX += columnWidths.slice(1).reduce((sum, width) => sum + width, 0);
+    currentX += columnWidths[1] + columnWidths[2];
     currentY += rowHeight;
   };
 
@@ -274,7 +266,7 @@ async function downloadPdfReport(records, rangeKey) {
     }
 
     let currentX = marginX;
-    const values = [row.label, formatNumber(row.added), formatNumber(row.used), formatNumber(row.net), String(row.totalEntries)];
+    const values = [row.label, formatNumber(row.added), formatNumber(row.used)];
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...textGreen);
@@ -353,8 +345,6 @@ function Reports({ records = [] }) {
                 <th>Period</th>
                 <th>Added</th>
                 <th>Used</th>
-                <th>Net Change</th>
-                <th>Transactions</th>
               </tr>
             </thead>
             <tbody>
@@ -364,15 +354,11 @@ function Reports({ records = [] }) {
                     <td className="period-cell">{row.label}</td>
                     <td className="added-cell">{formatNumber(row.added)}</td>
                     <td className="used-cell">{formatNumber(row.used)}</td>
-                    <td className={row.net >= 0 ? 'positive' : 'negative'}>
-                      <strong>{row.net >= 0 ? '+' : ''}{formatNumber(row.net)}</strong>
-                    </td>
-                    <td className="transaction-cell">{row.totalEntries}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="empty-state">No inventory records found for this period</td>
+                  <td colSpan="3" className="empty-state">No inventory records found for this period</td>
                 </tr>
               )}
             </tbody>
