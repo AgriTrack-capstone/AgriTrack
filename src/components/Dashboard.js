@@ -219,24 +219,6 @@ function Dashboard({ crops = [], records = [] }) {
             </div>
           </div>
         </div>
-
-        {/* Crop Status Overview */}
-        <div className="crop-status-card">
-          <h3>Crop Status Overview</h3>
-          <div className="crop-status-list">
-            {cropStatusData.map((crop, index) => (
-              <div key={index} className="crop-status-item">
-                <div className="crop-info">
-                  <span className="crop-name">{crop.name}</span>
-                  <span className="crop-percentage">{crop.percentage}%</span>
-                </div>
-                <div className="progress-bar-container">
-                  <div className="progress-bar" style={{ width: `${crop.percentage}%`, backgroundColor: crop.color }}></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
     </div>
