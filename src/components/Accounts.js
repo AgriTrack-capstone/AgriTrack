@@ -11,7 +11,7 @@ const DEFAULT_FORM = {
   status: 'Active'
 };
 
-function Accounts() {
+function Accounts({ userRole = 'Admin', currentUserName = '' }) {
   const [accounts, setAccounts] = useState([]);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [message, setMessage] = useState('');

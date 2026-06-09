@@ -1196,7 +1196,11 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                       </div>
                       <div className="form-group">
                         <label>Unit</label>
-                        <input type="text" name="unit" value={inputForm.unit} onChange={handleInputChange} placeholder="kg, liters, etc." />
+                        <select name="unit" value={inputForm.unit} onChange={handleInputChange}>
+                          <option value="">Select Unit</option>
+                          <option value="kg">KG</option>
+                          <option value="liters">LITERS</option>
+                        </select>
                       </div>
                       <div className="form-group">
                         <label>Date Added</label>

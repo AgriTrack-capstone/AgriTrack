@@ -6,6 +6,7 @@ import { supabase } from '../supabaseClient';
 function Dashboard({ crops = [], records = [] }) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [inputs, setInputs] = useState([]);
+  const [imageErrors, setImageErrors] = useState({});
 
   // Helper function to determine if an input is low stock
   const isLowStock = (quantity) => {
@@ -82,25 +83,26 @@ function Dashboard({ crops = [], records = [] }) {
 
   // Generate crop records highlights with crop-specific images
   const generateCropRecordsHighlights = () => {
+    // Local image paths from public/images/crops/ with Pexels fallbacks
     const cropImages = {
-      'Rice': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'rice': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Corn': 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=1200&q=80',
-      'Tomato': 'https://images.unsplash.com/photo-1591581731833-b3bbb00b7da7?w=1200&q=80',
-      'Cabbage': 'https://images.unsplash.com/photo-1464184169885-abc23fd7d0ad?w=1200&q=80',
-      'Carrot': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Lettuce': 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=1200&q=80',
-      'Pepper': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Potato': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Sweet Potato': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Eggplant': 'https://images.unsplash.com/photo-1585518419759-66ba70c8b0ac?w=1200&q=80',
-      'Singkamas': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Spinach': 'https://images.unsplash.com/photo-1511690656519-0d582745abc9?w=1200&q=80',
-      'Radish': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Bean': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1200&q=80',
-      'Squash': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80',
-      'Okra': 'https://images.unsplash.com/photo-1585518419759-66ba70c8b0ac?w=1200&q=80',
-      'Pumpkin': 'https://images.unsplash.com/photo-1599599810694-d3a7e1a46b4b?w=1200&q=80'
+      'Rice': { local: '/images/crops/rice.avif', fallback: 'https://images.pexels.com/photos/212248/pexels-photo-212248.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'rice': { local: '/images/crops/rice.avif', fallback: 'https://images.pexels.com/photos/212248/pexels-photo-212248.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Corn': { local: '/images/crops/corn.jpg', fallback: 'https://images.pexels.com/photos/5632456/pexels-photo-5632456.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Tomato': { local: '/images/crops/tomato.jpeg', fallback: 'https://images.pexels.com/photos/2544873/pexels-photo-2544873.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Cabbage': { local: '/images/crops/cabbage.jpg', fallback: 'https://images.pexels.com/photos/7974865/pexels-photo-7974865.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Carrot': { local: '/images/crops/carrot.jpg', fallback: 'https://images.pexels.com/photos/5474236/pexels-photo-5474236.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Lettuce': { local: '/images/crops/lettuce.jpg', fallback: 'https://images.pexels.com/photos/4688280/pexels-photo-4688280.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Pepper': { local: '/images/crops/pepper.jpg', fallback: 'https://images.pexels.com/photos/4162501/pexels-photo-4162501.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Potato': { local: '/images/crops/potato.jpg', fallback: 'https://images.pexels.com/photos/4555311/pexels-photo-4555311.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Sweet Potato': { local: '/images/crops/sweet potato.jpg', fallback: 'https://images.pexels.com/photos/4555311/pexels-photo-4555311.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Eggplant': { local: '/images/crops/eggplant.jpg', fallback: 'https://images.pexels.com/photos/3952635/pexels-photo-3952635.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Singkamas': { local: '/images/crops/singkamas.webp', fallback: 'https://images.pexels.com/photos/5474236/pexels-photo-5474236.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Spinach': { local: '/images/crops/spinach.jpg', fallback: 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Radish': { local: '/images/crops/radish.jpg', fallback: 'https://images.pexels.com/photos/5474236/pexels-photo-5474236.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Bean': { local: '/images/crops/bean.jpg', fallback: 'https://images.pexels.com/photos/4543101/pexels-photo-4543101.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Squash': { local: '/images/crops/squash.jpg', fallback: 'https://images.pexels.com/photos/3970170/pexels-photo-3970170.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Okra': { local: '/images/crops/okra.jpg', fallback: 'https://images.pexels.com/photos/4543101/pexels-photo-4543101.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' },
+      'Pumpkin': { local: '/images/crops/pumpkin.jpg', fallback: 'https://images.pexels.com/photos/3970170/pexels-photo-3970170.jpeg?auto=compress&cs=tinysrgb&w=500&h=500&fit=crop' }
     };
 
     if (records.length > 0) {
@@ -112,28 +114,33 @@ function Dashboard({ crops = [], records = [] }) {
         const cropName = record.crop || 'Crop';
         if (!seenCrops.has(cropName) && record.qty_amount) {
           seenCrops.add(cropName);
+          const imageData = cropImages[cropName] || cropImages['Rice'];
           uniqueCrops.push({
             name: cropName,
             quantity: record.qty_amount || record.quantity?.amount || 0,
             unit: record.unit || 'kg',
             field: record.field || 'Farm',
             date: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Today',
-            image: cropImages[cropName] || cropImages['Rice']
+            image: imageData
           });
         }
       });
 
-      return uniqueCrops.length > 0 ? uniqueCrops : [
-        { name: 'Rice', quantity: 250, unit: 'kg', field: 'General Farm', date: 'May 29', image: cropImages['Rice'] },
-        { name: 'Corn', quantity: 180, unit: 'kg', field: 'North Plot', date: 'May 28', image: cropImages['Corn'] },
-        { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot', date: 'May 27', image: cropImages['Tomato'] }
-      ];
+      if (uniqueCrops.length > 0) {
+        return uniqueCrops;
+      }
     }
 
+    const defaultImages = [
+      { local: cropImages['Rice'].local, fallback: cropImages['Rice'].fallback },
+      { local: cropImages['Corn'].local, fallback: cropImages['Corn'].fallback },
+      { local: cropImages['Tomato'].local, fallback: cropImages['Tomato'].fallback }
+    ];
+
     return [
-      { name: 'Rice', quantity: 250, unit: 'kg', field: 'General Farm', date: 'May 29', image: cropImages['Rice'] },
-      { name: 'Corn', quantity: 180, unit: 'kg', field: 'North Plot', date: 'May 28', image: cropImages['Corn'] },
-      { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot', date: 'May 27', image: cropImages['Tomato'] }
+      { name: 'Rice', quantity: 250, unit: 'kg', field: 'General Farm', date: 'May 29', image: defaultImages[0] },
+      { name: 'Corn', quantity: 180, unit: 'kg', field: 'North Plot', date: 'May 28', image: defaultImages[1] },
+      { name: 'Tomato', quantity: 95, unit: 'kg', field: 'Vegetable Plot', date: 'May 27', image: defaultImages[2] }
     ];
   };
 
@@ -155,6 +162,21 @@ function Dashboard({ crops = [], records = [] }) {
 
   const goToNextSlide = () => {
     setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % cropRecordsData.length);
+  };
+
+  // Handle image load errors - fall back to Unsplash URL
+  const handleImageError = (index) => {
+    setImageErrors(prev => ({
+      ...prev,
+      [index]: true
+    }));
+  };
+
+  const getImageUrl = (imageData, slideIndex) => {
+    if (imageErrors[slideIndex]) {
+      return imageData.fallback;
+    }
+    return imageData.local;
   };
 
   // Generate crop status data from crops array with health percentages based on stock
@@ -200,9 +222,10 @@ function Dashboard({ crops = [], records = [] }) {
           <div className="farmer-carousel">
             <div className="carousel-image-wrapper">
               <img
-                src={cropRecordsData[currentSlideIndex].image}
+                src={getImageUrl(cropRecordsData[currentSlideIndex].image, currentSlideIndex)}
                 alt={cropRecordsData[currentSlideIndex].name}
                 className="carousel-image"
+                onError={() => handleImageError(currentSlideIndex)}
               />
               <div className="carousel-overlay">
                 <h4>{cropRecordsData[currentSlideIndex].name}</h4>

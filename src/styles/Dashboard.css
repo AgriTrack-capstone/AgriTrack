@@ -83,30 +83,65 @@
 /* Weather Card */
 .weather-card {
   background: linear-gradient(135deg, var(--color-primary) 0%, #2e7d32 100%);
-  border-radius: 12px;
-  padding: 24px 25px;
+  border-radius: 16px;
+  padding: 28px;
   color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.weather-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.weather-card:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2), 0 0 1px rgba(255, 255, 255, 0.1) inset;
+  transform: translateY(-4px);
 }
 
 .weather-card h3 {
-  font-size: 18px;
-  margin: 0 0 20px 0;
-  font-weight: 600;
+  font-size: 20px;
+  margin: 0 0 24px 0;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.98);
+  letter-spacing: 0.3px;
+  position: relative;
+  z-index: 1;
 }
 
 .farmer-carousel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
 }
 
 .carousel-image-wrapper {
   position: relative;
-  border-radius: 10px;
+  border-radius: 16px;
   overflow: hidden;
   height: 280px;
-  background: rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #2d5016 0%, #1b5e20 100%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carousel-image-wrapper:hover {
+  transform: scale(1.02);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .carousel-image {
@@ -114,6 +149,30 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  animation: zoomIn 0.6s ease-out;
+  background: linear-gradient(135deg, #2d5016 0%, #1b5e20 100%);
+  transition: filter 0.3s ease;
+}
+
+.carousel-image:hover {
+  filter: brightness(1.05) contrast(1.05);
+}
+
+.carousel-image[src=""] {
+  display: none;
+}
+
+@keyframes zoomIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0.8;
+    filter: blur(4px);
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0px);
+  }
 }
 
 .carousel-overlay {
@@ -121,31 +180,62 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 14px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.7) 100%);
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 100%);
+  backdrop-filter: blur(8px);
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .carousel-overlay h4 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.5px;
 }
 
 .carousel-overlay p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  opacity: 0.9;
+  margin: 10px 0 0;
+  font-size: 15px;
+  opacity: 0.95;
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 500;
 }
 
 .carousel-activity-count {
   display: inline-block;
-  margin-top: 8px;
-  padding: 4px 10px;
+  margin-top: 14px;
+  padding: 10px 18px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.22);
+  font-size: 14px;
+  font-weight: 800;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.2) 100%);
   color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.3px;
+  transition: all 0.3s ease;
+}
+
+.carousel-activity-count:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.3) 100%);
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 25px rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
 }
 
 .carousel-controls {
@@ -153,48 +243,87 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-top: 16px;
+  position: relative;
+  z-index: 10;
 }
 
 .carousel-btn {
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  width: 48px;
+  height: 48px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
   color: white;
-  font-size: 22px;
+  font-size: 26px;
   line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .carousel-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.2) 100%);
+  border-color: rgba(255, 255, 255, 0.8);
+  transform: scale(1.12);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.carousel-btn:active {
+  transform: scale(0.96);
 }
 
 .carousel-dots {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex: 1;
+  justify-content: center;
+  min-height: 20px;
 }
 
 .carousel-dot {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.45);
+  border: 2.5px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.3);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.carousel-dot:hover {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.8);
+  transform: scale(1.2);
 }
 
 .carousel-dot.active {
-  width: 24px;
-  border-radius: 12px;
+  width: 36px;
+  border-radius: 14px;
   background: white;
+  border-color: white;
+  box-shadow: 0 5px 16px rgba(255, 255, 255, 0.4);
+  animation: dotActive 0.4s ease-out;
+}
+
+@keyframes dotActive {
+  from {
+    transform: scaleX(0.6);
+    opacity: 0.7;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
 }
 
 .weather-content {
