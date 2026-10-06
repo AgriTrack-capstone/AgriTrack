@@ -4,44 +4,34 @@ import { supabase } from './supabaseClient';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
 import FarmRecords from './components/FarmRecords';
-import Reports from './components/Reports';
-import Alerts from './components/Alerts';
-import Accounts from './components/Accounts';
 import Inventory from './components/Inventory';
+import Reports from './components/Reports';
 import Login from './components/Login'; 
-
-const initialCrops = [
-  {
-    id: 1,
-    name: 'Nyam',
-    field: 'Rice Field D',
-    stock: { amount: 0, unit: 'kg' },
-    color: '#efe7c4'
-  },
-  {
-    id: 2,
-    name: 'Carrots',
-    field: 'Rice Field B',
-    stock: { amount: 1000, unit: 'kg' },
-    color: '#f1d1a5'
-  },
-  {
-    id: 3,
-    name: 'Tomato',
-    field: 'Rice Field A',
-    stock: { amount: 1000, unit: 'kg' },
-    color: '#f4c2ba'
-  }
-];
-
-const initialRecords = [];
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [crops, setCrops] = useState(initialCrops);
-  const [records, setRecords] = useState(initialRecords);
+  const [crops, setCrops] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('agriTrack-crops') || '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch (error) {
+      console.warn('Unable to load locally saved crops', error);
+      return [];
+    }
+  });
+  const [records, setRecords] = useState([]);
+  const [inputs, setInputs] = useState([]);
+  const [harvests, setHarvests] = useState([]);
+  const [farms, setFarms] = useState([]);
+  const [fields, setFields] = useState([]);
+  const [farmers, setFarmers] = useState([]);
+  const [labor, setLabor] = useState([]);
+  const [cropPlantings, setCropPlantings] = useState([]);
+  const [cropMonitorings, setCropMonitorings] = useState([]);
+  const [wasteRecords, setWasteRecords] = useState([]);
+  const [activityLog, setActivityLog] = useState([]);
   const [currentUserRole, setCurrentUserRole] = useState(() => {
-    return localStorage.getItem('agriTrack-role') || 'Farm Worker';
+    return localStorage.getItem('agriTrack-role') || 'Labor';
   });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return localStorage.getItem('agriTrack-auth') === 'true';
@@ -73,11 +63,13 @@ function App() {
         return false;
       }
 
+      const normalizedRole = data.role === 'Farm Worker' ? 'Labor' : (data.role || 'Labor');
+
       localStorage.setItem('agriTrack-auth', 'true');
       localStorage.setItem('agriTrack-user', data.full_name);
-      localStorage.setItem('agriTrack-role', data.role || 'Farm Worker');
+      localStorage.setItem('agriTrack-role', normalizedRole);
       setCurrentUser(data.full_name);
-      setCurrentUserRole(data.role || 'Farm Worker');
+      setCurrentUserRole(normalizedRole);
       setIsAuthenticated(true);
       return true;
     } catch (err) {
@@ -89,49 +81,93 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('agriTrack-auth');
     localStorage.removeItem('agriTrack-role');
+    localStorage.removeItem('agriTrack-user');
     setIsAuthenticated(false);
     setActiveTab('dashboard');
   };
 
-  React.useEffect(() => {
-    if (currentUserRole !== 'Admin' && activeTab === 'accounts') {
-      setActiveTab('dashboard');
-    }
-    if (currentUserRole === 'Farm Worker' && activeTab === 'reports') {
-      setActiveTab('dashboard');
-    }
-  }, [activeTab, currentUserRole]);
-
   // Load initial data from Supabase
   React.useEffect(() => {
     let mounted = true;
-    async function load() {
-      try {
-        const { data: cropsData, error: cropErr } = await supabase
-          .from('crops')
-          .select('*')
-          .order('id', { ascending: false });
 
-        if (!cropErr && mounted && cropsData) {
-          setCrops(cropsData.map((c) => ({
-            id: c.id,
-            name: c.name,
-            field: c.field,
-            variety: c.variety || '',
-            date_planted: c.date_planted || null,
-            area: c.area || '',
-            status: c.status || 'Growing',
-            stock: { amount: Number(c.stock_amt) || 0, unit: c.stock_unit || '' },
-            color: c.color || '#e8f5e9'
-          })));
+    const safeSelect = async (table, select = '*', order = 'id') => {
+      try {
+        let query = supabase.from(table).select(select);
+
+        if (order) {
+          query = query.order(order, { ascending: false });
         }
 
-        const { data: recordsData, error: recordErr } = await supabase
-          .from('records')
-          .select('*')
-          .order('id', { ascending: false });
+        const { data, error } = await query;
+        if (error) {
+          return [];
+        }
 
-        if (!recordErr && mounted && recordsData) {
+        return data || [];
+      } catch (error) {
+        return [];
+      }
+    };
+
+    async function load() {
+      try {
+        let storedCrops = [];
+        try {
+          const stored = JSON.parse(localStorage.getItem('agriTrack-crops') || '[]');
+          storedCrops = Array.isArray(stored) ? stored : [];
+        } catch (storageError) {
+          console.warn('Unable to read locally saved crops', storageError);
+        }
+
+        const [cropsData, recordsData, inputsData, harvestsData, farmsData, fieldsData, farmersData, laborData, cropPlantingsData, cropMonitoringsData, wasteRecordsData, activityLogData] = await Promise.all([
+          safeSelect('crops'),
+          safeSelect('records'),
+          safeSelect('inputs'),
+          safeSelect('harvests'),
+          safeSelect('farms'),
+          safeSelect('fields'),
+          safeSelect('farmers'),
+          safeSelect('labor'),
+          safeSelect('crop_plantings'),
+          safeSelect('crop_monitorings'),
+          safeSelect('waste_records'),
+          safeSelect('crop_activity_log', '*', null)
+        ]);
+
+        if (mounted && cropsData) {
+          const localCropsById = new Map(storedCrops.map((crop) => [String(crop.id), crop]));
+          const supabaseCrops = cropsData.map((c) => {
+            const localCrop = localCropsById.get(String(c.id)) || {};
+            const quantity = Number(c.stock_amt ?? localCrop.stock_amt ?? localCrop.quantity) || 0;
+            const unit = c.stock_unit || localCrop.stock_unit || localCrop.unit || '';
+
+            return {
+              ...localCrop,
+              id: c.id,
+              name: c.name || localCrop.name || '',
+              field: c.field || localCrop.field || '',
+              variety: c.variety || localCrop.variety || '',
+              date_planted: c.date_planted || localCrop.date_planted || localCrop.datePlanted || null,
+              created_at: c.created_at || localCrop.created_at || null,
+              expected_harvest_date: c.expected_harvest_date || localCrop.expected_harvest_date || localCrop.expectedHarvestDate || null,
+              harvested_at: c.harvested_at || localCrop.harvested_at || localCrop.dateHarvested || null,
+              dateHarvested: c.harvested_at || localCrop.dateHarvested || '',
+              planted_by: c.planted_by || localCrop.planted_by || localCrop.plantedBy || '',
+              inputs_provided: c.inputs_provided || localCrop.inputs_provided || localCrop.inputsProvided || '',
+              area: c.area || localCrop.area || '',
+              status: c.status || localCrop.status || 'Growing',
+              quantity,
+              unit,
+              stock: { amount: quantity, unit },
+              color: c.color || localCrop.color || '#e8f5e9'
+            };
+          });
+          const supabaseCropIds = new Set(supabaseCrops.map((crop) => String(crop.id)));
+          const locallySavedCrops = storedCrops.filter((crop) => !supabaseCropIds.has(String(crop.id)));
+          setCrops([...supabaseCrops, ...locallySavedCrops]);
+        }
+
+        if (mounted && recordsData) {
           setRecords(recordsData.map((r) => ({
             id: r.id,
             title: r.title,
@@ -143,6 +179,19 @@ function App() {
             status: r.status || 'Scheduled',
             date: r.schedule_at ? new Date(r.schedule_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
           })));
+        }
+
+        if (mounted) {
+          setInputs(inputsData);
+          setHarvests(harvestsData);
+          setFarms(farmsData);
+          setFields(fieldsData);
+          setFarmers(farmersData);
+          setLabor(laborData);
+          setCropPlantings(cropPlantingsData);
+          setCropMonitorings(cropMonitoringsData);
+          setWasteRecords(wasteRecordsData);
+          setActivityLog(activityLogData || []);
         }
       } catch (err) {
         // keep console error for debugging
@@ -161,17 +210,29 @@ function App() {
       const oldRow = payload.old;
 
       if (payload.eventType === 'INSERT' && row) {
-        setCrops((prev) => [{
+        const createdCrop = {
           id: row.id,
           name: row.name,
-          field: row.field,
+          field: row.field || '',
           variety: row.variety || '',
           date_planted: row.date_planted || null,
-          area: row.area || '',
-          status: row.status || 'Growing',
+          created_at: row.created_at || null,
+          expected_harvest_date: row.expected_harvest_date || null,
+          harvested_at: row.harvested_at || null,
+          dateHarvested: row.harvested_at || '',
+          planted_by: row.planted_by || '',
+          inputs_provided: row.inputs_provided || '',
+          status: row.status || 'Planted',
+          quantity: Number(row.stock_amt) || 0,
+          unit: row.stock_unit || '',
           stock: { amount: Number(row.stock_amt) || 0, unit: row.stock_unit || '' },
           color: row.color || '#e8f5e9'
-        }, ...prev]);
+        };
+        setCrops((prev) => (
+          prev.some((crop) => String(crop.id) === String(row.id))
+            ? prev
+            : [createdCrop, ...prev]
+        ));
       }
 
       if (payload.eventType === 'UPDATE' && row) {
@@ -180,11 +241,18 @@ function App() {
             ? {
                 ...crop,
                 name: row.name,
-                field: row.field,
+                field: row.field ?? '',
                 variety: row.variety || crop.variety || '',
-                date_planted: row.date_planted || crop.date_planted || crop.datePlanted || null,
-                area: row.area || crop.area || '',
-                status: row.status || crop.status || 'Growing',
+                date_planted: row.date_planted ?? null,
+                created_at: row.created_at || crop.created_at || null,
+                expected_harvest_date: row.expected_harvest_date ?? null,
+                harvested_at: row.harvested_at ?? null,
+                dateHarvested: row.harvested_at || '',
+                planted_by: row.planted_by ?? '',
+                inputs_provided: row.inputs_provided || crop.inputs_provided || crop.inputsProvided || '',
+                status: row.status || crop.status || 'Planted',
+                quantity: Number(row.stock_amt) || 0,
+                unit: row.stock_unit || '',
                 stock: { amount: Number(row.stock_amt) || 0, unit: row.stock_unit || '' },
                 color: row.color || crop.color
               }
@@ -266,19 +334,36 @@ function App() {
             userRole={currentUserRole}
           />
           <main className="main-content">
-            {activeTab === 'dashboard' && <Dashboard crops={crops} records={records} />}
-            {activeTab === 'farmRecords' && (
-              <FarmRecords
+            {activeTab === 'dashboard' && (
+              <Dashboard
                 crops={crops}
                 setCrops={setCrops}
                 records={records}
-                setRecords={setRecords}
+                inputs={inputs}
+                harvests={harvests}
+                farms={farms}
+                fields={fields}
+                farmers={farmers}
+                labor={labor}
+                cropPlantings={cropPlantings}
+                cropMonitorings={cropMonitorings}
+                wasteRecords={wasteRecords}
+                activityLog={activityLog}
+                currentUser={currentUser}
+                currentUserRole={currentUserRole}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
               />
             )}
-            {activeTab === 'reports' && currentUserRole !== 'Farm Worker' && <Reports crops={crops} records={records} />}
+
+            {activeTab === 'farm-records' && (
+              <FarmRecords crops={crops} setCrops={setCrops} records={records} setRecords={setRecords} />
+            )}
+
             {activeTab === 'inventory' && <Inventory crops={crops} />}
-            {activeTab === 'accounts' && currentUserRole === 'Admin' && <Accounts />}
-            {activeTab === 'alerts' && <Alerts records={records} crops={crops} />}
+
+            {activeTab === 'reports' && <Reports records={records} crops={crops} setCrops={setCrops} />}
+
           </main>
         </>
       ) : (

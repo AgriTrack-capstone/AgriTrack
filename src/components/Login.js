@@ -25,7 +25,7 @@ function Login({ onLogin }) {
     <div
       className="login-screen"
       style={{
-        backgroundImage: `linear-gradient(rgba(255,255,255,0.35), rgba(255,255,255,0.35)), url(${bg})`,
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.24), rgba(255,255,255,0.24)), url(${bg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',

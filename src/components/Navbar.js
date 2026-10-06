@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChartColumn, faClipboardList, faFileLines, faRightFromBracket } from '@fortawesome/free-solid-svg-icons';
 import '../styles/Navbar.css';
 
 function Navbar({ activeTab, setActiveTab, onLogout, userName, userRole }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const canAccessAccounts = userRole === 'Admin';
-  const canAccessReports = userRole !== 'Farm Worker';
+  const roleLabel = userRole === 'Farm Worker' ? 'Labor' : userRole || 'User';
 
   const dateString = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -23,11 +24,13 @@ function Navbar({ activeTab, setActiveTab, onLogout, userName, userRole }) {
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    // Close sidebar on mobile after clicking a menu item
-    if (window.innerWidth <= 768) {
-      setSidebarOpen(false);
-    }
   };
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: faChartColumn },
+    { id: 'farm-records', label: 'Farm Records', icon: faClipboardList },
+    { id: 'reports', label: 'Reports', icon: faFileLines }
+  ];
 
   const userInitials = userName
     .split(' ')
@@ -38,70 +41,36 @@ function Navbar({ activeTab, setActiveTab, onLogout, userName, userRole }) {
 
   return (
     <>
-      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
-      <aside className={`sidebar ${sidebarOpen ? 'open' : 'collapsed'}`}>
+      <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
         <div className="sidebar-profile">
           <div className="sidebar-avatar">{userInitials || 'U'}</div>
           <div className="sidebar-user-info">
             <h3>{userName}</h3>
-            <p>{userRole || 'User'}</p>
+            <p>{roleLabel}</p>
           </div>
         </div>
 
         <ul className="sidebar-menu">
-          <li>
-            <button
-              className={`sidebar-link ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => handleTabChange('dashboard')}
-            >
-              <span className="icon">⌂</span>
-              <span className="label">Dashboard</span>
-            </button>
-          </li>
-          <li>
-            <button
-              className={`sidebar-link ${activeTab === 'farmRecords' ? 'active' : ''}`}
-              onClick={() => handleTabChange('farmRecords')}
-            >
-              <span className="icon">▪</span>
-              <span className="label">Farm Records</span>
-            </button>
-          </li>
-          <li>
-            <button
-              className={`sidebar-link ${activeTab === 'inventory' ? 'active' : ''}`}
-              onClick={() => handleTabChange('inventory')}
-            >
-              <span className="icon">▣</span>
-              <span className="label">Inventory</span>
-            </button>
-          </li>
-          {canAccessReports && (
-            <li>
+          {navItems.map((item) => (
+            <li key={item.id}>
               <button
-                className={`sidebar-link ${activeTab === 'reports' ? 'active' : ''}`}
-                onClick={() => handleTabChange('reports')}
+                className={`sidebar-link ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => handleTabChange(item.id)}
+                type="button"
               >
-                <span className="icon">▨</span>
-                <span className="label">Reports</span>
+                <span className="sidebar-link-icon">
+                  <FontAwesomeIcon icon={item.icon} />
+                </span>
+                <span className="label">{item.label}</span>
               </button>
             </li>
-          )}
-          {canAccessAccounts && (
-            <li>
-              <button
-                className={`sidebar-link ${activeTab === 'accounts' ? 'active' : ''}`}
-                onClick={() => handleTabChange('accounts')}
-              >
-                <span className="icon">⊙</span>
-                <span className="label">Accounts</span>
-              </button>
-            </li>
-          )}
+          ))}
         </ul>
 
         <button className="sidebar-logout" aria-label="Logout" onClick={onLogout}>
-          <span className="icon">⏎</span>
+          <span className="sidebar-link-icon">
+            <FontAwesomeIcon icon={faRightFromBracket} />
+          </span>
           <span className="label">Logout</span>
         </button>
       </aside>
@@ -117,7 +86,7 @@ function Navbar({ activeTab, setActiveTab, onLogout, userName, userRole }) {
           <span></span>
           <span></span>
         </button>
-        <div className="topbar-date"><span className="topbar-icon">⧐</span> {dateString}</div>
+        <div className="topbar-date">{dateString}</div>
       </nav>
     </>
   );

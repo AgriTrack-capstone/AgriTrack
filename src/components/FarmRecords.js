@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import '../styles/FarmRecords.css';
 
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isMissingCropColumnError(error) {
+  return error?.code === 'PGRST204'
+    || error?.code === '42703'
+    || /column .* does not exist|could not find .*column|schema cache/i.test(error?.message || '');
+}
+
 function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords = () => {} }) {
   const [activeTab, setActiveTab] = useState('crops');
   const [showCropForm, setShowCropForm] = useState(false);
@@ -10,7 +23,19 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
   const [showFuelForm, setShowFuelForm] = useState(false);
   const [showHarvestForm, setShowHarvestForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [cropForm, setCropForm] = useState({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+  const [cropForm, setCropForm] = useState({
+    name: '',
+    variety: '',
+    field: '',
+    datePlanted: '',
+    expectedHarvestDate: '',
+    plantedBy: '',
+    inputsProvided: '',
+    harvestedAt: '',
+    quantity: '',
+    unit: 'kg',
+    status: 'Planted'
+  });
   const [inputForm, setInputForm] = useState({ name: '', type: '', quantity: '', unit: '', dateAdded: '', status: 'In Stock' });
   const [equipmentForm, setEquipmentForm] = useState({ name: '', type: '', status: 'Active', lastMaintenance: '', cost: '' });
   const [fuelForm, setFuelForm] = useState({ type: 'Diesel', quantity: '', unit: 'liters', date: '', cost: '', fuelType: 'Diesel' });
@@ -26,16 +51,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
   const [editFuelId, setEditFuelId] = useState(null);
   const [editHarvestId, setEditHarvestId] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
-
-  // Helper function to determine if an input is low stock
-  const isLowStock = (quantity) => {
-    return Number(quantity || 0) <= 3;
-  };
-
-  // Helper function to get the status label for an input
-  const getInputStatus = (quantity) => {
-    return isLowStock(quantity) ? 'Low Stock' : 'In Stock';
-  };
 
   // auto-clear toasts after a short delay
   useEffect(() => {
@@ -161,19 +176,186 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     };
   }, []);
 
+  const getFieldLabel = (fieldKey) => {
+    const fieldMap = {
+      'Field 1': 'Field 1 - Lower Farm / Lowland',
+      'Field 2': 'Field 2 - Higher Farm / Upland'
+    };
+
+    return fieldMap[fieldKey] || fieldKey;
+  };
+
+  const getBestFieldForCrop = (cropName) => {
+    const value = (cropName || '').trim().toLowerCase();
+
+    if (!value) return '';
+
+    const lowlandCrops = ['rice', 'corn', 'pechay', 'cucumber', 'tomato'];
+    const uplandCrops = ['sweet potato', 'sweetpotato', 'peanut', 'beans', 'eggplant'];
+
+    if (lowlandCrops.some((crop) => value.includes(crop))) return getFieldLabel('Field 1');
+    if (uplandCrops.some((crop) => value.includes(crop))) return getFieldLabel('Field 2');
+
+    return '';
+  };
+
+  const isHarvestedStatus = (value) => String(value || 'Planted').trim().toLowerCase() === 'harvested';
+
   const filteredCrops = crops.filter((crop) => {
+    if (isHarvestedStatus(crop.status)) return false;
+
     const query = searchTerm.trim().toLowerCase();
     return !query || crop.name.toLowerCase().includes(query) || (crop.variety || '').toLowerCase().includes(query);
   });
 
+  const harvestedCrops = crops.filter((crop) => isHarvestedStatus(crop.status));
+
+  const harvestRows = [
+    ...harvests,
+    ...harvestedCrops.map((crop) => ({
+      id: `crop-${crop.id}`,
+      cropName: crop.name,
+      quantity: crop.quantity || '-',
+      unit: crop.unit || '-',
+      dateHarvested: crop.harvested_at || crop.dateHarvested || crop.expected_harvest_date || crop.date_planted || crop.expectedHarvestDate || crop.datePlanted || '',
+      status: 'Harvested',
+      source: 'crop'
+    }))
+  ];
+
+  const getCropHarvestDays = React.useCallback((cropName) => {
+    const value = (cropName || '').trim().toLowerCase();
+
+    if (!value) return 120;
+    if (value.includes('palay') || value.includes('rice')) return 120;
+    if (value.includes('mais') || value.includes('corn') || value.includes('maize')) return 75;
+    if (value.includes('kamote') || value.includes('sweet potato') || value.includes('sweetpotato')) return 120;
+    if (value.includes('talong') || value.includes('eggplant')) return 14;
+    if (value.includes('kamatis') || value.includes('tomato')) return 2;
+
+    return 120;
+  }, []);
+
+  const getExpectedHarvestDate = React.useCallback((dateString, cropName = '') => {
+    if (!dateString) return '';
+    const date = new Date(`${dateString}T12:00:00`);
+    date.setDate(date.getDate() + getCropHarvestDays(cropName));
+    return date.toISOString().split('T')[0];
+  }, [getCropHarvestDays]);
+
+  useEffect(() => {
+    if (!cropForm.datePlanted) {
+      setCropForm((prev) => ({ ...prev, expectedHarvestDate: '' }));
+      return;
+    }
+
+    setCropForm((prev) => ({
+      ...prev,
+      expectedHarvestDate: getExpectedHarvestDate(prev.datePlanted, prev.name)
+    }));
+  }, [cropForm.datePlanted, getExpectedHarvestDate]);
+
   const handleCropInputChange = (event) => {
     const { name, value } = event.target;
-    setCropForm((prev) => ({ ...prev, [name]: value }));
+
+    setCropForm((prev) => {
+      if (name === 'name') {
+        const recommendedField = getBestFieldForCrop(value);
+        const nextHarvestDate = prev.datePlanted ? getExpectedHarvestDate(prev.datePlanted, value) : prev.expectedHarvestDate;
+        return {
+          ...prev,
+          name: value,
+          field: recommendedField || prev.field,
+          expectedHarvestDate: nextHarvestDate
+        };
+      }
+
+      if (name === 'field' && getBestFieldForCrop(prev.name)) {
+        return { ...prev, field: getBestFieldForCrop(prev.name) };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   const handleSaveCrop = (event) => {
     event.preventDefault();
     if (!cropForm.name.trim()) return;
+
+    const nextStatus = cropForm.status || 'Planted';
+    const plantingDate = cropForm.datePlanted || (editCropId ? '' : getLocalDateString());
+    const expectedHarvestDate = cropForm.expectedHarvestDate || getExpectedHarvestDate(plantingDate, cropForm.name);
+    const harvestedAt = isHarvestedStatus(nextStatus)
+      ? cropForm.harvestedAt || new Date().toISOString().split('T')[0]
+      : null;
+
+    const localSave = (
+      isEdit = false,
+      savedId = null,
+      message = 'Crop saved locally. Please check the Supabase connection if you expect database sync.'
+    ) => {
+      const saved = {
+        id: savedId ?? (isEdit ? editCropId : Date.now()),
+        name: cropForm.name,
+        field: cropForm.field || '',
+        variety: cropForm.variety || '',
+        date_planted: plantingDate || null,
+        datePlanted: plantingDate,
+        created_at: new Date().toISOString(),
+        expected_harvest_date: expectedHarvestDate,
+        expectedHarvestDate,
+        planted_by: cropForm.plantedBy || '',
+        plantedBy: cropForm.plantedBy || '',
+        inputs_provided: cropForm.inputsProvided || '',
+        inputsProvided: cropForm.inputsProvided || '',
+        quantity: cropForm.quantity || '',
+        unit: cropForm.unit || 'kg',
+        harvested_at: harvestedAt,
+        dateHarvested: harvestedAt,
+        status: nextStatus
+      };
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('agriTrack-crops') || '[]');
+        const updated = isEdit
+          ? (existing.some((crop) => String(crop.id) === String(editCropId))
+            ? existing.map((crop) => (String(crop.id) === String(editCropId) ? { ...crop, ...saved } : crop))
+            : [saved, ...existing])
+          : [saved, ...existing];
+        localStorage.setItem('agriTrack-crops', JSON.stringify(updated));
+      } catch (storageErr) {
+        console.warn('Local crop storage unavailable', storageErr);
+      }
+
+      if (isEdit) {
+        setCrops((prev) => prev.map((crop) => (
+          String(crop.id) === String(editCropId) ? { ...crop, ...saved } : crop
+        )));
+      } else {
+        setCrops((prev) => [
+          saved,
+          ...prev.filter((crop) => String(crop.id) !== String(saved.id))
+        ]);
+      }
+
+      setCropForm({
+        name: '',
+        variety: '',
+        field: '',
+        datePlanted: '',
+        expectedHarvestDate: '',
+        plantedBy: '',
+        inputsProvided: '',
+        unit: 'kg',
+        status: 'Planted'
+      });
+      setEditCropId(null);
+      setShowCropForm(false);
+      if (isHarvestedStatus(nextStatus)) {
+        setActiveTab('harvest');
+      }
+      alert(message);
+    };
 
     (async () => {
       try {
@@ -183,9 +365,14 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             .update({
               name: cropForm.name,
               variety: cropForm.variety,
-              date_planted: cropForm.datePlanted,
-              area: parseFloat(cropForm.area) || 0,
-              status: cropForm.status
+              field: cropForm.field,
+              date_planted: plantingDate || null,
+              expected_harvest_date: expectedHarvestDate,
+              planted_by: cropForm.plantedBy,
+              inputs_provided: cropForm.inputsProvided,
+              stock_amt: Number(cropForm.quantity) || 0,
+              stock_unit: cropForm.unit || 'kg',
+              status: nextStatus
             })
             .eq('id', editCropId)
             .select()
@@ -197,16 +384,44 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? {
                     ...crop,
                     name: data.name,
+                    field: data.field || '',
                     variety: data.variety,
+                    date_planted: data.date_planted,
                     datePlanted: data.date_planted,
-                    area: data.area,
-                    status: data.status
+                    created_at: data.created_at || crop.created_at || null,
+                    expected_harvest_date: data.expected_harvest_date || null,
+                    expectedHarvestDate: data.expected_harvest_date || '',
+                    harvested_at: data.harvested_at || null,
+                    dateHarvested: data.harvested_at || '',
+                    planted_by: data.planted_by || '',
+                    plantedBy: data.planted_by || '',
+                    inputs_provided: data.inputs_provided || '',
+                    inputsProvided: data.inputs_provided || '',
+                    quantity: Number(data.stock_amt) || 0,
+                    unit: data.stock_unit || cropForm.unit || crop.unit || 'kg',
+                    stock: { amount: Number(data.stock_amt) || 0, unit: data.stock_unit || cropForm.unit || 'kg' },
+                    status: data.status || 'Planted'
                   }
                 : crop
             )));
             alert('Crop updated successfully!');
           } else if (error) {
-            alert('Error updating crop: ' + error.message);
+            if (!isMissingCropColumnError(error)) throw error;
+
+            const { data: baseData, error: baseError } = await supabase
+              .from('crops')
+              .update({
+                name: cropForm.name,
+                field: cropForm.field,
+                stock_amt: Number(cropForm.quantity) || 0,
+                stock_unit: cropForm.unit || 'kg'
+              })
+              .eq('id', editCropId)
+              .select()
+              .single();
+            if (baseError) throw baseError;
+            localSave(true, baseData.id, 'Crop synced to Supabase. Run sql/farm_records_schema.sql in Supabase SQL Editor to sync all crop details.');
+            return;
           }
         } else {
           const { data, error } = await supabase
@@ -214,9 +429,14 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             .insert([{
               name: cropForm.name,
               variety: cropForm.variety,
-              date_planted: cropForm.datePlanted,
-              area: parseFloat(cropForm.area) || 0,
-              status: cropForm.status
+              field: cropForm.field,
+              date_planted: plantingDate || null,
+              expected_harvest_date: expectedHarvestDate,
+              planted_by: cropForm.plantedBy,
+              inputs_provided: cropForm.inputsProvided,
+              stock_amt: Number(cropForm.quantity) || 0,
+              stock_unit: cropForm.unit || 'kg',
+              status: nextStatus
             }])
             .select()
             .single();
@@ -225,34 +445,84 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             const created = {
               id: data.id,
               name: data.name,
+              field: data.field || '',
               variety: data.variety,
-              datePlanted: data.date_planted,
-              area: data.area,
-              status: data.status
+              date_planted: data.date_planted || plantingDate || null,
+              datePlanted: data.date_planted || plantingDate,
+              created_at: data.created_at || new Date().toISOString(),
+              expected_harvest_date: data.expected_harvest_date || expectedHarvestDate,
+              expectedHarvestDate: data.expected_harvest_date || expectedHarvestDate,
+              harvested_at: data.harvested_at || null,
+              dateHarvested: data.harvested_at || '',
+              plantedBy: data.planted_by || '',
+              inputsProvided: data.inputs_provided || '',
+              quantity: Number(data.stock_amt) || 0,
+              unit: data.stock_unit || cropForm.unit || 'kg',
+              stock: { amount: Number(data.stock_amt) || 0, unit: data.stock_unit || cropForm.unit || 'kg' },
+              status: data.status || nextStatus
             };
-            setCrops((prev) => [created, ...prev]);
+            setCrops((prev) => [
+              created,
+              ...prev.filter((crop) => String(crop.id) !== String(created.id))
+            ]);
             alert('Crop saved successfully!');
           } else if (error) {
-            alert('Error saving crop: ' + error.message);
+            if (!isMissingCropColumnError(error)) throw error;
+
+            const { data: baseData, error: baseError } = await supabase
+              .from('crops')
+              .insert([{
+                name: cropForm.name,
+                field: cropForm.field,
+                stock_amt: Number(cropForm.quantity) || 0,
+                stock_unit: cropForm.unit || 'kg'
+              }])
+              .select()
+              .single();
+            if (baseError) throw baseError;
+            localSave(false, baseData.id, 'Crop synced to Supabase. Run sql/farm_records_schema.sql in Supabase SQL Editor to sync all crop details.');
+            return;
           }
         }
       } catch (error) {
         console.error('Supabase save crop error', error);
+        localSave(Boolean(editCropId));
+        return;
+      }
+
+      setCropForm({
+        name: '',
+        variety: '',
+        field: '',
+        datePlanted: '',
+        expectedHarvestDate: '',
+        plantedBy: '',
+        inputsProvided: '',
+        quantity: '',
+        unit: 'kg',
+        status: 'Planted'
+      });
+      setEditCropId(null);
+      setShowCropForm(false);
+      if (isHarvestedStatus(nextStatus)) {
+        setActiveTab('harvest');
       }
     })();
-
-    setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
-    setEditCropId(null);
-    setShowCropForm(false);
   };
 
   const handleEditCrop = (crop) => {
     setCropForm({
       name: crop.name || '',
       variety: crop.variety || '',
+      field: crop.field || '',
       datePlanted: crop.date_planted || crop.datePlanted || '',
-      area: crop.area || '',
-      status: crop.status || 'Growing'
+      expectedHarvestDate: crop.expectedHarvestDate || crop.expected_harvest_date || '',
+      plantedBy: crop.plantedBy || crop.planted_by || '',
+      inputsProvided: crop.inputsProvided || crop.inputs_provided || '',
+      harvestedAt: crop.harvested_at || crop.dateHarvested || '',
+      quantity: crop.quantity || '',
+      unit: crop.unit || 'kg',
+      status: crop.status || 'Planted'
     });
     setEditCropId(crop.id);
     setShowCropForm(true);
@@ -260,23 +530,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
   const handleDeleteCrop = (cropId) => {
     if (window.confirm('Are you sure you want to delete this crop?')) {
+      const localDelete = () => {
+        try {
+          const existing = JSON.parse(localStorage.getItem('agriTrack-crops') || '[]');
+          const updated = existing.filter((crop) => String(crop.id) !== String(cropId));
+          localStorage.setItem('agriTrack-crops', JSON.stringify(updated));
+        } catch (storageErr) {
+          console.warn('Local crop storage unavailable during delete', storageErr);
+        }
+
+        setCrops((prev) => prev.filter((crop) => String(crop.id) !== String(cropId)));
+        alert('Crop deleted locally. Please check the Supabase connection if the server record is still present.');
+      };
+
       (async () => {
         try {
-          const crop = crops.find((c) => c.id === cropId);
-          
-          // Create deletion transaction record
-          if (crop) {
-            await createTransactionRecord(
-              `Deleted crop: ${crop.name}`,
-              crop.area || 'General',
-              crop.name,
-              0,
-              'unit',
-              `Crop record deleted: ${crop.name}`,
-              'Deleted'
-            );
-          }
-          
           const { error } = await supabase
             .from('crops')
             .delete()
@@ -284,13 +552,13 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (error) {
             throw error;
-          } else {
-            setCrops((prev) => prev.filter((crop) => crop.id !== cropId));
-            alert('Crop deleted successfully!');
           }
+
+          setCrops((prev) => prev.filter((crop) => String(crop.id) !== String(cropId)));
+          alert('Crop deleted successfully!');
         } catch (error) {
           console.error('Error deleting crop:', error);
-          alert('Error deleting crop: ' + error.message);
+          localDelete();
         }
       })();
     }
@@ -303,6 +571,8 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
   const getStatusColor = (status) => {
     switch (status) {
       case 'Growing':
+        return '#4caf50';
+      case 'Planted':
         return '#4caf50';
       case 'Planned':
         return '#2196f3';
@@ -318,32 +588,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
         return '#f44336';
       default:
         return '#9e9e9e';
-    }
-  };
-
-  // ============ TRANSACTION RECORD HELPERS ============
-  // Create a transaction record for inventory tracking
-  const createTransactionRecord = async (title, field, crop, quantity, unit, notes, status = 'Completed') => {
-    try {
-      const now = new Date().toISOString();
-      const { error } = await supabase
-        .from('records')
-        .insert([{
-          title,
-          field: field || 'General',
-          crop: crop || 'Various',
-          qty_amount: quantity,
-          qty_unit: unit || 'unit',
-          schedule_at: now,
-          notes,
-          status
-        }]);
-
-      if (error) {
-        console.error('Error creating transaction record:', error);
-      }
-    } catch (error) {
-      console.error('Error creating transaction record:', error);
     }
   };
 
@@ -380,18 +624,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, name: data.name, type: data.type, quantity: data.quantity, unit: data.unit, dateAdded: data.date_added, status: data.status }
                 : item
             )));
-            
-            // Create transaction record for updated input
-            await createTransactionRecord(
-              `Updated input: ${inputForm.name}`,
-              'General',
-              inputForm.type,
-              parseFloat(inputForm.quantity) || 0,
-              inputForm.unit,
-              `Input record updated: ${inputForm.name}`,
-              'Completed'
-            );
-            
             alert('Input record updated successfully!');
           } else if (error) {
             alert('Error updating input: ' + error.message);
@@ -418,18 +650,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             const created = Array.isArray(data) ? data[0] : data;
             if (created) {
               setInputs((prev) => [{ id: created.id, name: created.name, type: created.type, quantity: created.quantity, unit: created.unit, dateAdded: created.date_added, status: created.status }, ...prev]);
-              
-              // Create transaction record for reports
-              await createTransactionRecord(
-                `Added ${inputForm.name}`,
-                'General',
-                inputForm.type,
-                parseFloat(inputForm.quantity) || 0,
-                inputForm.unit,
-                `Input received: ${inputForm.name}`,
-                'Completed'
-              );
-              
               setToast('Input record saved successfully!');
             }
           }
@@ -461,21 +681,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this input record?')) {
       (async () => {
         try {
-          const input = inputs.find((i) => i.id === inputId);
-          
-          // Create deletion transaction record
-          if (input) {
-            await createTransactionRecord(
-              `Deleted input: ${input.name}`,
-              'General',
-              input.type,
-              input.quantity || 0,
-              input.unit,
-              `Input record deleted: ${input.name}`,
-              'Deleted'
-            );
-          }
-          
           const { error } = await supabase.from('inputs').delete().eq('id', inputId);
           if (error) throw error;
           setInputs((prev) => prev.filter((item) => item.id !== inputId));
@@ -520,18 +725,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, name: data.name, type: data.type, status: data.status, lastMaintenance: data.last_maintenance, cost: data.cost }
                 : item
             )));
-            
-            // Create transaction record for equipment maintenance
-            await createTransactionRecord(
-              `Equipment maintained: ${equipmentForm.name}`,
-              'General',
-              equipmentForm.type,
-              1,
-              'unit',
-              `Equipment update: ${equipmentForm.name} - Status: ${equipmentForm.status}`,
-              'Completed'
-            );
-            
             alert('Equipment record updated successfully!');
           } else if (error) {
             alert('Error updating equipment: ' + error.message);
@@ -551,18 +744,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setEquipment((prev) => [...prev, { id: data.id, name: data.name, type: data.type, status: data.status, lastMaintenance: data.last_maintenance, cost: data.cost }]);
-            
-            // Create transaction record for reports
-            await createTransactionRecord(
-              `Equipment recorded: ${equipmentForm.name}`,
-              'General',
-              equipmentForm.type,
-              1,
-              'unit',
-              `Equipment maintenance: ${equipmentForm.name} - ${equipmentForm.status}`,
-              'Completed'
-            );
-            
             alert('Equipment record saved successfully!');
           } else if (error) {
             alert('Error saving equipment: ' + error.message);
@@ -594,21 +775,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this equipment record?')) {
       (async () => {
         try {
-          const equipment_item = equipment.find((e) => e.id === equipmentId);
-          
-          // Create deletion transaction record
-          if (equipment_item) {
-            await createTransactionRecord(
-              `Deleted equipment: ${equipment_item.name}`,
-              'General',
-              equipment_item.type,
-              1,
-              'unit',
-              `Equipment record deleted: ${equipment_item.name} - Cost: ₱${equipment_item.cost || '0'}`,
-              'Deleted'
-            );
-          }
-          
           const { error } = await supabase.from('equipment').delete().eq('id', equipmentId);
           if (error) throw error;
           setEquipment((prev) => prev.filter((item) => item.id !== equipmentId));
@@ -653,18 +819,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, type: data.type, quantity: data.quantity, unit: data.unit, date: data.date, cost: data.cost }
                 : item
             )));
-            
-            // Create transaction record for fuel update
-            await createTransactionRecord(
-              `Fuel record updated: ${fuelForm.fuelType}`,
-              'General',
-              'Fuel',
-              parseFloat(fuelForm.quantity) || 0,
-              fuelForm.unit,
-              `Updated fuel usage: ${fuelForm.fuelType}`,
-              'Completed'
-            );
-            
             alert('Fuel record updated successfully!');
           } else if (error) {
             alert('Error updating fuel: ' + error.message);
@@ -684,18 +838,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setFuels((prev) => [...prev, { id: data.id, type: data.type, quantity: data.quantity, unit: data.unit, date: data.date, cost: data.cost }]);
-            
-            // Create transaction record for reports
-            await createTransactionRecord(
-              `Fuel consumed: ${fuelForm.fuelType}`,
-              'General',
-              'Fuel',
-              parseFloat(fuelForm.quantity) || 0,
-              fuelForm.unit,
-              `Fuel usage: ${fuelForm.fuelType} - ${fuelForm.cost ? `Cost: ₱${fuelForm.cost}` : ''}`,
-              'Completed'
-            );
-            
             alert('Fuel record saved successfully!');
           } else if (error) {
             alert('Error saving fuel: ' + error.message);
@@ -728,21 +870,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this fuel record?')) {
       (async () => {
         try {
-          const fuel = fuels.find((f) => f.id === fuelId);
-          
-          // Create deletion transaction record
-          if (fuel) {
-            await createTransactionRecord(
-              `Deleted fuel: ${fuel.type}`,
-              'General',
-              'Fuel',
-              fuel.quantity || 0,
-              fuel.unit,
-              `Fuel record deleted: ${fuel.type} - Cost: ₱${fuel.cost || '0'}`,
-              'Deleted'
-            );
-          }
-          
           const { error } = await supabase.from('fuels').delete().eq('id', fuelId);
           if (error) throw error;
           setFuels((prev) => prev.filter((item) => item.id !== fuelId));
@@ -787,18 +914,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 ? { ...item, cropName: data.crop_name, quantity: data.quantity, unit: data.unit, dateHarvested: data.date_harvested, status: data.status }
                 : item
             )));
-            
-            // Create transaction record for harvest update
-            await createTransactionRecord(
-              `Updated harvest: ${harvestForm.cropName}`,
-              'General',
-              harvestForm.cropName,
-              parseFloat(harvestForm.quantity) || 0,
-              harvestForm.unit,
-              `Updated harvest record: ${harvestForm.cropName}`,
-              harvestForm.status
-            );
-            
             alert('Harvest record updated successfully!');
           } else if (error) {
             alert('Error updating harvest: ' + error.message);
@@ -818,18 +933,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
           if (!error && data) {
             setHarvests((prev) => [...prev, { id: data.id, cropName: data.crop_name, quantity: data.quantity, unit: data.unit, dateHarvested: data.date_harvested, status: data.status }]);
-            
-            // Create transaction record for reports (harvest is a "used" transaction)
-            await createTransactionRecord(
-              `Harvested ${harvestForm.cropName}`,
-              'General',
-              harvestForm.cropName,
-              parseFloat(harvestForm.quantity) || 0,
-              harvestForm.unit,
-              `Harvest completed: ${harvestForm.cropName} - Status: ${harvestForm.status}`,
-              harvestForm.status
-            );
-            
             alert('Harvest record saved successfully!');
           } else if (error) {
             alert('Error saving harvest: ' + error.message);
@@ -861,21 +964,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
     if (window.confirm('Delete this harvest record?')) {
       (async () => {
         try {
-          const harvest = harvests.find((h) => h.id === harvestId);
-          
-          // Create deletion transaction record
-          if (harvest) {
-            await createTransactionRecord(
-              `Deleted harvest: ${harvest.cropName}`,
-              'General',
-              harvest.cropName,
-              harvest.quantity || 0,
-              harvest.unit,
-              `Harvest record deleted: ${harvest.cropName} - Status: ${harvest.status}`,
-              'Deleted'
-            );
-          }
-          
           const { error } = await supabase.from('harvests').delete().eq('id', harvestId);
           if (error) throw error;
           setHarvests((prev) => prev.filter((item) => item.id !== harvestId));
@@ -907,24 +995,6 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
             🌾 Crops
           </button>
           <button
-            className={`tab-button ${activeTab === 'inputs' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inputs')}
-          >
-            📦 Inputs
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'equipment' ? 'active' : ''}`}
-            onClick={() => setActiveTab('equipment')}
-          >
-            🚜 Equipment
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'fuel' ? 'active' : ''}`}
-            onClick={() => setActiveTab('fuel')}
-          >
-            ⚙️ Fuel
-          </button>
-          <button
             className={`tab-button ${activeTab === 'harvest' ? 'active' : ''}`}
             onClick={() => setActiveTab('harvest')}
           >
@@ -944,23 +1014,22 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
               />
-              <button 
-                className="add-record-btn"
-                onClick={() => {
-                  setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
-                  setEditCropId(null);
-                  setShowCropForm(true);
-                }}
-              >
-                + Add Record
-              </button>
             </div>
 
             {/* Form */}
             {showCropForm && (
               <div className="crop-form-overlay" onClick={() => {
                 setShowCropForm(false);
-                setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+                setCropForm({
+                  name: '',
+                  variety: '',
+                  field: '',
+                  datePlanted: '',
+                  expectedHarvestDate: '',
+                  plantedBy: '',
+                  inputsProvided: '',
+                  status: 'Planted'
+                });
                 setEditCropId(null);
               }}>
                 <div className="crop-form-card crop-form-shell" onClick={(event) => event.stopPropagation()}>
@@ -974,7 +1043,16 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                       className="crop-form-close-btn"
                       onClick={() => {
                         setShowCropForm(false);
-                        setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+                        setCropForm({
+                          name: '',
+                          variety: '',
+                          field: '',
+                          datePlanted: '',
+                          expectedHarvestDate: '',
+                          plantedBy: '',
+                          inputsProvided: '',
+                          status: 'Planted'
+                        });
                         setEditCropId(null);
                       }}
                       aria-label="Close crop form"
@@ -997,7 +1075,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         />
                       </div>
                       <div className="form-group">
-                        <label>Variety</label>
+                        <label>Crop Variety</label>
                         <input
                           type="text"
                           name="variety"
@@ -1010,7 +1088,33 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
                     <div className="form-row">
                       <div className="form-group">
-                        <label>Date Planted</label>
+                        <label>Field Where Planted</label>
+                        <select
+                          name="field"
+                          value={cropForm.field}
+                          onChange={handleCropInputChange}
+                          disabled={Boolean(getBestFieldForCrop(cropForm.name))}
+                        >
+                          <option value="">Select field</option>
+                          <option value="Field 1 - Lower Farm / Lowland">Field 1 - Lower Farm / Lowland</option>
+                          <option value="Field 2 - Higher Farm / Upland">Field 2 - Higher Farm / Upland</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Person Who Planted</label>
+                        <input
+                          type="text"
+                          name="plantedBy"
+                          value={cropForm.plantedBy}
+                          onChange={handleCropInputChange}
+                          placeholder="Enter planter name"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Planting Date</label>
                         <input
                           type="date"
                           name="datePlanted"
@@ -1019,22 +1123,65 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         />
                       </div>
                       <div className="form-group">
-                        <label>Area (ha)</label>
+                        <label>Expected Harvest Date</label>
                         <input
-                          type="number"
-                          name="area"
-                          value={cropForm.area}
+                          type="date"
+                          name="expectedHarvestDate"
+                          value={cropForm.expectedHarvestDate}
+                          readOnly
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Inputs Provided</label>
+                        <input
+                          type="text"
+                          name="inputsProvided"
+                          value={cropForm.inputsProvided}
                           onChange={handleCropInputChange}
-                          placeholder="Enter area"
-                          step="0.01"
+                          placeholder="e.g., Urea, Compost, Organic fertilizer"
                         />
                       </div>
                       <div className="form-group">
                         <label>Status</label>
-                        <select name="status" value={cropForm.status} onChange={handleCropInputChange}>
-                          <option value="Growing">Growing</option>
-                          <option value="Planned">Planned</option>
-                          <option value="Harvested">Harvested</option>
+                        {editCropId ? (
+                          <select name="status" value={cropForm.status} onChange={handleCropInputChange}>
+                            <option value="Planted">Planted</option>
+                            <option value="Harvested">Harvested</option>
+                          </select>
+                        ) : (
+                          <input
+                            name="status"
+                            value={cropForm.status}
+                            onChange={handleCropInputChange}
+                            placeholder="Planted"
+                            readOnly
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Quantity Harvested</label>
+                        <input
+                          type="number"
+                          name="quantity"
+                          value={cropForm.quantity}
+                          onChange={handleCropInputChange}
+                          placeholder="e.g., 120"
+                          min="0"
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Unit</label>
+                        <select name="unit" value={cropForm.unit} onChange={handleCropInputChange}>
+                          <option value="kg">kg</option>
+                          <option value="sacks">sacks</option>
+                          <option value="tons">tons</option>
+                          <option value="pcs">pcs</option>
                         </select>
                       </div>
                     </div>
@@ -1048,7 +1195,16 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         className="btn btn-secondary"
                         onClick={() => {
                           setShowCropForm(false);
-                          setCropForm({ name: '', variety: '', datePlanted: '', area: '', status: 'Growing' });
+                          setCropForm({
+                            name: '',
+                            variety: '',
+                            field: '',
+                            datePlanted: '',
+                            expectedHarvestDate: '',
+                            plantedBy: '',
+                            inputsProvided: '',
+                            status: 'Planted'
+                          });
                           setEditCropId(null);
                         }}
                       >
@@ -1068,8 +1224,11 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                     <tr>
                       <th>Crop Name</th>
                       <th>Variety</th>
-                      <th>Date Planted</th>
-                      <th>Area (ha)</th>
+                      <th>Field</th>
+                      <th>Planting Date</th>
+                      <th>Expected Harvest</th>
+                      <th>Planted By</th>
+                      <th>Inputs</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -1079,13 +1238,21 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                       <tr key={crop.id}>
                         <td className="crop-name">{crop.name}</td>
                         <td>{crop.variety || '-'}</td>
+                        <td>{crop.field || crop.field_name || '-'}</td>
                         <td>
                           {(crop.date_planted || crop.datePlanted)
                             ? new Date(crop.date_planted || crop.datePlanted).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
                             : '-'
                           }
                         </td>
-                        <td>{crop.area || '-'}</td>
+                        <td>
+                          {(crop.expectedHarvestDate || crop.expected_harvest_date)
+                            ? new Date(crop.expectedHarvestDate || crop.expected_harvest_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : '-'
+                          }
+                        </td>
+                        <td>{crop.plantedBy || crop.planted_by || '-'}</td>
+                        <td>{crop.inputsProvided || crop.inputs_provided || '-'}</td>
                         <td>
                           <span 
                             className="status-badge"
@@ -1094,7 +1261,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                               color: 'white'
                             }}
                           >
-                            {crop.status || 'Growing'}
+                            {crop.status || 'Planted'}
                           </span>
                         </td>
                         <td className="actions-cell">
@@ -1196,11 +1363,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                       </div>
                       <div className="form-group">
                         <label>Unit</label>
-                        <select name="unit" value={inputForm.unit} onChange={handleInputChange}>
-                          <option value="">Select Unit</option>
-                          <option value="kg">KG</option>
-                          <option value="liters">LITERS</option>
-                        </select>
+                        <input type="text" name="unit" value={inputForm.unit} onChange={handleInputChange} placeholder="kg, liters, etc." />
                       </div>
                       <div className="form-group">
                         <label>Date Added</label>
@@ -1240,31 +1403,27 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                     </tr>
                   </thead>
                   <tbody>
-                    {inputs.filter(item => !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => {
-                      const calculatedStatus = getInputStatus(item.quantity);
-                      const statusColor = isLowStock(item.quantity) ? '#ff9800' : '#4caf50';
-                      return (
-                        <tr key={item.id}>
-                          <td className="crop-name">{item.name}</td>
-                          <td>{item.type || '-'}</td>
-                          <td>{item.quantity}</td>
-                          <td>{item.unit}</td>
-                          <td>{item.dateAdded ? new Date(item.dateAdded).toLocaleDateString() : '-'}</td>
-                          <td><span className="status-badge" style={{ backgroundColor: statusColor, color: 'white' }}>{calculatedStatus}</span></td>
-                          <td className="actions-cell">
-                            <div className="action-menu">
-                              <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
-                              {menuOpenId === item.id && (
-                                <div className="dropdown-menu">
-                                  <button onClick={() => { setMenuOpenId(null); handleEditInput(item); }}>Edit</button>
-                                  <button onClick={() => { setMenuOpenId(null); handleDeleteInput(item.id); }} className="danger">Delete</button>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {inputs.filter(item => !searchTerm || item.name.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                      <tr key={item.id}>
+                        <td className="crop-name">{item.name}</td>
+                        <td>{item.type || '-'}</td>
+                        <td>{item.quantity}</td>
+                        <td>{item.unit}</td>
+                        <td>{item.dateAdded ? new Date(item.dateAdded).toLocaleDateString() : '-'}</td>
+                        <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
+                        <td className="actions-cell">
+                          <div className="action-menu">
+                            <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
+                            {menuOpenId === item.id && (
+                              <div className="dropdown-menu">
+                                <button onClick={() => { setMenuOpenId(null); handleEditInput(item); }}>Edit</button>
+                                <button onClick={() => { setMenuOpenId(null); handleDeleteInput(item.id); }} className="danger">Delete</button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1334,7 +1493,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         <td>{item.type || '-'}</td>
                         <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
                         <td>{item.lastMaintenance ? new Date(item.lastMaintenance).toLocaleDateString() : '-'}</td>
-                        <td>₱{item.cost || '0'}</td>
+                        <td>${item.cost || '0'}</td>
                         <td className="actions-cell">
                           <div className="action-menu">
                             <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
@@ -1417,7 +1576,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                         <td>{item.quantity}</td>
                         <td>{item.unit}</td>
                         <td>{item.date ? new Date(item.date).toLocaleDateString() : '-'}</td>
-                        <td>₱{item.cost || '0'}</td>
+                        <td>${item.cost || '0'}</td>
                         <td className="actions-cell">
                           <div className="action-menu">
                             <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
@@ -1461,7 +1620,7 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
 
                   <form onSubmit={handleSaveHarvest}>
                     <div className="form-row">
-                      <div className="form-group"><label>Crop Name *</label><select name="cropName" value={harvestForm.cropName} onChange={handleHarvestChange} required><option value="">Select a crop</option>{crops.map((crop) => (<option key={crop.id} value={crop.name}>{crop.name}</option>))}</select></div>
+                      <div className="form-group"><label>Crop Name *</label><input type="text" name="cropName" value={harvestForm.cropName} onChange={handleHarvestChange} placeholder="e.g., Rice, Corn" required /></div>
                       <div className="form-group"><label>Quantity *</label><input type="number" name="quantity" value={harvestForm.quantity} onChange={handleHarvestChange} placeholder="Enter quantity" required /></div>
                     </div>
 
@@ -1488,18 +1647,18 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
               </div>
             )}
 
-            {harvests.length > 0 ? (
+            {harvestRows.length > 0 ? (
               <div className="table-wrapper">
                 <table className="records-table">
                   <thead>
                     <tr><th>Crop Name</th><th>Quantity</th><th>Unit</th><th>Date Harvested</th><th>Status</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
-                    {harvests.filter(item => !searchTerm || item.cropName.toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
+                    {harvestRows.filter(item => !searchTerm || (item.cropName || '').toLowerCase().includes(searchTerm.toLowerCase())).map((item) => (
                       <tr key={item.id}>
                         <td className="crop-name">{item.cropName}</td>
-                        <td>{item.quantity}</td>
-                        <td>{item.unit}</td>
+                        <td>{item.quantity || '-'}</td>
+                        <td>{item.unit || '-'}</td>
                         <td>{item.dateHarvested ? new Date(item.dateHarvested).toLocaleDateString() : '-'}</td>
                         <td><span className="status-badge" style={{ backgroundColor: getStatusColor(item.status), color: 'white' }}>{item.status}</span></td>
                         <td className="actions-cell">
@@ -1507,8 +1666,16 @@ function FarmRecords({ crops = [], setCrops = () => {}, records = [], setRecords
                             <button className="menu-btn" onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}>⋮</button>
                             {menuOpenId === item.id && (
                               <div className="dropdown-menu">
-                                <button onClick={() => { setMenuOpenId(null); handleEditHarvest(item); }}>Edit</button>
-                                <button onClick={() => { setMenuOpenId(null); handleDeleteHarvest(item.id); }} className="danger">Delete</button>
+                                {item.source === 'crop' ? (
+                                  <button onClick={() => { setMenuOpenId(null); handleEditCrop(crops.find((crop) => crop.id === Number(String(item.id).replace('crop-', '')))); }}>Edit</button>
+                                ) : (
+                                  <button onClick={() => { setMenuOpenId(null); handleEditHarvest(item); }}>Edit</button>
+                                )}
+                                {item.source === 'crop' ? (
+                                  <button onClick={() => { setMenuOpenId(null); handleDeleteCrop(Number(String(item.id).replace('crop-', ''))); }} className="danger">Delete</button>
+                                ) : (
+                                  <button onClick={() => { setMenuOpenId(null); handleDeleteHarvest(item.id); }} className="danger">Delete</button>
+                                )}
                               </div>
                             )}
                           </div>

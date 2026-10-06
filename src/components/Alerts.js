@@ -16,7 +16,9 @@ function Alerts({ crops = [] }) {
     setDismissedAlerts((prev) => [...prev, cropId]);
   };
 
-
+  const undoDismiss = (cropId) => {
+    setDismissedAlerts((prev) => prev.filter((id) => id !== cropId));
+  };
 
   const formatQuantity = (quantity) => {
     if (!quantity) return '';
@@ -48,6 +50,7 @@ function Alerts({ crops = [] }) {
         ) : (
           <div className="alerts-list">
             {thresholdAlerts.map((crop) => {
+              const stockAmount = Number(crop.stock?.amount) || 0;
               const icon = cropIconMap[crop.name] || crop.name?.charAt(0)?.toUpperCase() || '📦';
 
               return (

@@ -4,7 +4,12 @@
 -- ============ UPDATE CROPS TABLE ============
 ALTER TABLE crops
 ADD COLUMN IF NOT EXISTS variety text,
+ADD COLUMN IF NOT EXISTS field text,
 ADD COLUMN IF NOT EXISTS date_planted date,
+ADD COLUMN IF NOT EXISTS expected_harvest_date date,
+ADD COLUMN IF NOT EXISTS harvested_at date,
+ADD COLUMN IF NOT EXISTS planted_by text,
+ADD COLUMN IF NOT EXISTS inputs_provided text,
 ADD COLUMN IF NOT EXISTS area numeric(10,2),
 ADD COLUMN IF NOT EXISTS status text DEFAULT 'Growing';
 

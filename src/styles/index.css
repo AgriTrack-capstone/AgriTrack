@@ -7,9 +7,12 @@
   --color-neutral: #eeeeee;
   --color-neutral-dark: #d6d6d6;
   --color-surface: #ffffff;
-  --color-background: #ffffff;
+  --color-background: #f5f7f5;
   --color-text: #1f2a1f;
   --color-text-muted: #5f6b5f;
+  --sidebar-width: 176px;
+  --sidebar-collapsed-width: 72px;
+  --topbar-height: 64px;
 }
 
 * {
@@ -24,8 +27,11 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--color-background);
+  background:
+    radial-gradient(circle at top left, rgba(27, 94, 32, 0.08), transparent 28%),
+    linear-gradient(180deg, #f8fbf8 0%, #eef4ef 100%);
   color: var(--color-text);
+  line-height: 1.5;
 }
 
 code {
@@ -61,18 +67,11 @@ button {
   cursor: pointer;
   border: none;
   font-family: inherit;
-  -webkit-tap-highlight-color: transparent;
 }
 
 a {
   text-decoration: none;
   color: inherit;
-}
-
-/* Mobile-friendly viewport */
-@viewport {
-  width: device-width;
-  zoom: 1;
 }
 
 /* Animation */

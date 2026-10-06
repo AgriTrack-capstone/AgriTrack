@@ -13,6 +13,15 @@ app.get('/health', (req, res) => {
   res.json({ status: 'Server is running' });
 });
 
+app.post('/api/crop-detection', (req, res) => {
+  res.status(501).json({
+    message: 'Crop detection is not implemented yet.',
+    crop: null,
+    growth_stage: null,
+    confidence: null
+  });
+});
+
 function listenOnPort(portToTry) {
   const server = app.listen(portToTry, () => {
     console.log(`Server listening on port ${portToTry}`);

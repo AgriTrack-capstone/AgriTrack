@@ -3,7 +3,7 @@ import '../styles/Login.css';
 
 export default function Logo() {
   return (
-    <div className="app-logo" aria-hidden="true">
+    <div className="app-logo login-logo" aria-hidden="true">
       <svg viewBox="0 0 260 260" role="img" focusable="false">
         <circle cx="130" cy="130" r="110" fill="none" stroke="#315b33" strokeWidth="3" />
         <path d="M48 112c13-29 38-51 67-62" fill="none" stroke="#315b33" strokeWidth="4" strokeLinecap="round" />

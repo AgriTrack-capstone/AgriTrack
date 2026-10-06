@@ -1,25 +1,25 @@
 /* App Layout */
 .app {
   min-height: 100vh;
-  background-color: var(--color-background);
+  background: transparent;
 }
 
 .main-content {
-  padding: 84px 22px 20px;
-  margin-left: 240px;
-  width: calc(100% - 240px);
+  padding: calc(var(--topbar-height) + 14px) 18px 18px;
+  margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
   transition: margin-left 0.3s ease, width 0.3s ease;
 }
 
 body.sidebar-collapsed .main-content {
-  margin-left: 86px;
-  width: calc(100% - 86px);
+  margin-left: var(--sidebar-collapsed-width);
+  width: calc(100% - var(--sidebar-collapsed-width));
 }
 
 /* Responsive Design for Tablets and Mobiles */
 @media (max-width: 1024px) {
   .main-content {
-    padding: 78px 15px 15px;
+    padding: calc(var(--topbar-height) + 10px) 14px 14px;
   }
 }
 
@@ -27,7 +27,7 @@ body.sidebar-collapsed .main-content {
   .main-content {
     margin-left: 0;
     width: 100%;
-    padding: 78px 10px 12px;
+    padding: calc(var(--topbar-height) + 10px) 10px 12px;
   }
 
   body.sidebar-collapsed .main-content {
@@ -38,7 +38,7 @@ body.sidebar-collapsed .main-content {
 
 @media (max-width: 480px) {
   .main-content {
-    padding: 74px 8px 10px;
+    padding: calc(var(--topbar-height) + 6px) 8px 10px;
   }
 }
 
